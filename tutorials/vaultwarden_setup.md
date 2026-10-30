@@ -1,176 +1,89 @@
-Given current `homeserver` architecture, One would deploy Vaultwarden as a **small, isolated Docker stack**, keep it **Tailscale/LAN-only**, put it behind your existing **Nginx Proxy Manager + AdGuard**, and include it in your existing **Restic configuration backup**.
+# Production Self-Hosted Password Management: Vaultwarden Deployment & Hardening
 
-The important principle is:
+## 1. Overview & Architectural Background
+Vaultwarden is an alternative implementation of the Bitwarden server API written in Rust. It provides full compatibility with official Bitwarden mobile apps, browser extensions, and desktop clients while significantly reducing operational overhead compared to the upstream enterprise Bitwarden stack.
 
-> **Do not expose Vaultwarden directly to the Internet.** Your password vault should be one of the most protected services on the server.
-
-Vaultwarden's upstream documentation supports Docker Compose with persistent `/data` storage, and the current image is `vaultwarden/server`. ([GitHub][1])
-
-## Target architecture
-
-For your server, I'd use:
-
-```text
-                         YOUR DEVICES
-                ┌──────────┼──────────┐
-                │          │          │
-             Windows     MacBook    Phone
-                │          │          │
-                └──────────┼──────────┘
-                           │
-                       Tailscale
-                           │
-                           ▼
-                    100.83.21.64
-                           │
-                           ▼
-                  AdGuard Home DNS
-                           │
-              vault.home.arpa
-                           │
-                           ▼
-                Nginx Proxy Manager
-                     HTTPS :443
-                           │
-                           ▼
-                    Vaultwarden
-                     Docker :80
-                           │
-                           ▼
-             /opt/stacks/vaultwarden/data
-                           │
-                           ▼
-                 Restic homeserver backup
-                           │
-              ┌────────────┴────────────┐
-              ▼                         ▼
-        /mnt/cloud/...             External HDD
-```
-
-Your users will never need to remember a port.
-
-You'll simply use:
-
-**`https://vault.home.arpa`**
+### Upstream Bitwarden vs. Vaultwarden Mechanics
+* **Resource Footprint**: Upstream Bitwarden is an enterprise-oriented suite composed of a dozen ASP.NET microservices requiring Microsoft SQL Server and 3–4 GB of base memory. Vaultwarden rewrites the API layer in asynchronous Rust (Actix-web / Rocket), executing as a single lightweight binary consuming roughly 30–50 MB of RAM.
+* **Database Backend**: Vaultwarden defaults to an embedded SQLite database using Write-Ahead Logging (WAL) for high concurrency, with native support for external MariaDB/PostgreSQL databases when scaling across enterprise nodes.
+* **Cryptographic Guarantees**: All cryptographic operations (Argon2id master key derivation, AES-256 vault encryption, and asymmetric RSA key generation) happen entirely client-side. The server strictly stores zero-knowledge encrypted ciphertext, blind hashes, and initialization vectors.
+* **Mandatory TLS Requirement**: WebCrypto APIs enforce that browser extensions and modern web vaults will only function over secure HTTPS contexts (or `localhost`).
 
 ---
 
-# 1. Before we start
-
-There are three things I would deliberately **not** do:
-
-### Don't expose port 80/443 from Vaultwarden itself
-
-NPM already owns:
-
-```text
-80
-81
-443
-```
-
-So Vaultwarden doesn't need a host port.
-
-### Don't put Vaultwarden's data under `/mnt/media`
-
-Your media disk is for media.
-
-### Don't put the Vaultwarden database on `/mnt/cloud`
-
-Although `/mnt/cloud` is a good data disk, your existing Restic architecture already backs up configuration/application data from the root filesystem.
-
-For this particular service, I'd keep:
-
-```text
-/opt/stacks/vaultwarden/
-```
-
-and make its persistent data:
-
-```text
-/opt/stacks/vaultwarden/data/
-```
-
-That also makes disaster recovery straightforward.
+## 2. Production Homelab Use Cases
+* **Centralized Credential Vaulting**: Secure passwords, software licenses, SSH keys, identity records, and secure notes across all personal and family devices.
+* **Integrated Two-Factor Authentication (2FA)**: Built-in TOTP authenticator engine, eliminating the need for a secondary mobile authenticator app.
+* **Secure File Attachments & Sends**: End-to-end encrypted file sharing via Bitwarden Send.
+* **Emergency Access**: Designated emergency fallback contacts for family succession planning.
 
 ---
 
-# 2. Create the stack
+## 3. Prerequisites & Environment Planning
+* Linux host (Ubuntu 22.04/24.04 LTS or Debian 11/12) with Docker and Docker Compose installed.
+* Fully Qualified Domain Name (FQDN) or local domain (e.g., `vault.home.lab` or `vault.kiranpsankhi.com.np`) terminating with a valid HTTPS certificate (via Nginx Proxy Manager, Caddy, or Traefik).
+* Dedicated directory for persistent vault data and automated backups.
 
-SSH into your homeserver:
-
-```bash
-ssh homeserver
-```
-
-Then:
-
-```bash
-sudo mkdir -p /opt/stacks/vaultwarden/data
-cd /opt/stacks/vaultwarden
-```
-
-Check:
-
-```bash
-pwd
-```
-
-You should get:
-
+### Directory Layout
 ```text
-/opt/stacks/vaultwarden
+/opt/homelab/vaultwarden/
+├── compose.yaml
+├── .env
+├── backups/
+└── data/
 ```
 
 ---
 
-# 3. Create the `.env`
+## 4. Step-by-Step Implementation
 
-We'll keep secrets out of the Compose file.
+### Step 4.1: Prepare Host Directories
+Create the directory structure and set proper ownership permissions:
 
 ```bash
-sudo nano /opt/stacks/vaultwarden/.env
+sudo mkdir -p /opt/homelab/vaultwarden/{data,backups}
+cd /opt/homelab/vaultwarden
 ```
 
-Put:
+### Step 4.2: Generate an Administrative Token
+Vaultwarden provides a web-based `/admin` management panel. Protect it with an Argon2-hashed secret token using `openssl`:
 
-```dotenv
-DOMAIN=https://vault.home.arpa
+```bash
+# Generate a strong 32-byte secret token
+ADMIN_TOKEN=$(openssl rand -hex 32)
+echo "Generated Admin Token: ${ADMIN_TOKEN}"
+```
 
-SIGNUPS_ALLOWED=true
+> **Note**: Store this output string safely; you will paste it into the environment configuration.
 
+### Step 4.3: Create Environment Configuration (`.env`)
+Create `/opt/homelab/vaultwarden/.env`:
+
+```bash
+cat <<EOF> /opt/homelab/vaultwarden/.env
+# Vaultwarden Core Configuration
+DOMAIN=[https://vault.home.lab](https://vault.home.lab)
+ADMIN_TOKEN=${ADMIN_TOKEN}
+SIGNUPS_ALLOWED=false
+INVITATIONS_ALLOWED=true
+SHOW_PASSWORD_HINT=false
+
+# WebSocket Push Notifications
 WEBSOCKET_ENABLED=true
 
-TZ=Asia/Kathmandu
+# Database Tuning
+DATABASE_URL=data/db.sqlite3
+DATABASE_MAX_CONNS=10
+
+# Logging & Storage
+LOG_LEVEL=warn
+EXTENDED_LOGGING=true
+LOG_FILE=/data/vaultwarden.log
+EOF
 ```
 
-### Why `SIGNUPS_ALLOWED=true` initially?
-
-Because you need to create your first account.
-
-After creating your account, we'll change it to:
-
-```dotenv
-SIGNUPS_ALLOWED=false
-```
-
-This is important.
-
-Otherwise anyone who can reach the Vaultwarden service could potentially create an account.
-
-Vaultwarden supports `SIGNUPS_ALLOWED` specifically for controlling registration. ([GitHub][2])
-
----
-
-# 4. Create Docker Compose
-
-Create:
-
-```bash
-sudo nano /opt/stacks/vaultwarden/compose.yaml
-```
-
-Use:
+### Step 4.4: Deploy Docker Compose Manifest (`compose.yaml`)
+Create `/opt/homelab/vaultwarden/compose.yaml`:
 
 ```yaml
 services:
@@ -178,1099 +91,110 @@ services:
     image: vaultwarden/server:latest
     container_name: vaultwarden
     restart: unless-stopped
-
-    environment:
-      DOMAIN: ${DOMAIN}
-      SIGNUPS_ALLOWED: ${SIGNUPS_ALLOWED}
-      WEBSOCKET_ENABLED: ${WEBSOCKET_ENABLED}
-      TZ: ${TZ}
-
+    env_file:
+      - .env
     volumes:
       - ./data:/data
-
+    ports:
+      - "127.0.0.1:8088:80"    # HTTP API / Web Vault (reverse proxy target)
+    environment:
+      - WEBSOCKET_PORT=3012
     networks:
-      - vaultwarden
+      - ingress-net
 
 networks:
-  vaultwarden:
-    name: vaultwarden
+  ingress-net:
+    external: true
 ```
 
-Notice something important:
+*Note: If your reverse proxy runs on the same Docker host, attaching Vaultwarden to your shared `ingress-net` bridge lets your proxy resolve `http://vaultwarden:80` directly.*
 
-```yaml
-networks:
-  - vaultwarden
-```
-
-There is **no `ports:` section**.
-
-That is intentional.
-
-Vaultwarden is not directly accessible from your LAN.
-
-NPM will eventually connect to it through Docker networking.
-
----
-
-# 5. Check the Compose configuration
-
-Before starting anything:
-
-```bash
-cd /opt/stacks/vaultwarden
-sudo docker compose config
-```
-
-Look for errors.
-
-Then:
-
-```bash
-sudo docker compose pull
-```
-
-Start it:
+Launch the container:
 
 ```bash
 sudo docker compose up -d
 ```
 
-Check:
+---
 
-```bash
-sudo docker ps
-```
+## 5. Reverse Proxy Configuration & WebSocket Setup
 
-You should see something like:
+To support live real-time sync across open browser tabs without manual refreshing, route both standard HTTP traffic and WebSocket connections through your reverse proxy.
 
-```text
-vaultwarden   vaultwarden/server:latest   Up ...
-```
-
-Check the logs:
-
-```bash
-sudo docker compose logs --tail=50
-```
-
-You want to see Vaultwarden starting normally without repeated errors.
+### Nginx / Nginx Proxy Manager Configuration:
+1. **Details**:
+   * **Forward Hostname / IP**: `vaultwarden` (or local IP)
+   * **Forward Port**: `80` (or `8088`)
+   * Check **Websockets Support**.
+2. **SSL Tab**:
+   * Select a valid Wildcard or Domain SSL certificate.
+   * Check **Force SSL**, **HTTP/2 Support**, and **HSTS Enabled**.
+3. **Custom Locations (If not using integrated WebSocket support)**:
+   * Define path `/notifications/hub` forwarding to port `3012`.
 
 ---
 
-# 6. Connect Vaultwarden to Nginx Proxy Manager
+## 6. Automated Backup Strategy (SQLite Snapshots)
 
-This is the one part that requires a small change to your existing NPM arrangement.
+Because SQLite uses continuous read/write locks, copying `db.sqlite3` while the container is running risks database corruption. Use the SQLite online backup API via the CLI to create safe, point-in-time snapshots.
 
-Your NPM container needs to be able to communicate with the Vaultwarden container.
-
-First inspect your NPM stack:
+Create an automated backup script `/opt/homelab/vaultwarden/backup-vault.sh`:
 
 ```bash
-docker inspect nginx-proxy-manager
+sudo tee /opt/homelab/vaultwarden/backup-vault.sh <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+BACKUP_DIR="/opt/homelab/vaultwarden/backups"
+DATA_DIR="/opt/homelab/vaultwarden/data"
+TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+BACKUP_FILE="${BACKUP_DIR}/vault_backup_${TIMESTAMP}.sqlite3"
+
+mkdir -p "${BACKUP_DIR}"
+
+# 1. Safe SQLite snapshot via sqlite3 CLI inside container
+docker exec vaultwarden sqlite3 /data/db.sqlite3 ".backup '/data/db_snapshot.sqlite3'"
+
+# 2. Move snapshot and compress attachments
+mv "${DATA_DIR}/db_snapshot.sqlite3" "${BACKUP_FILE}"
+tar -czf "${BACKUP_DIR}/attachments_${TIMESTAMP}.tar.gz" -C "${DATA_DIR}" attachments/
+
+# 3. Prune snapshots older than 14 days
+find "${BACKUP_DIR}" -type f -name "vault_backup_*.sqlite3" -mtime +14 -delete
+find "${BACKUP_DIR}" -type f -name "attachments_*.tar.gz" -mtime +14 -delete
+
+echo "[$(date)] Vaultwarden backup completed successfully."
+EOF
+
+sudo chmod +x /opt/homelab/vaultwarden/backup-vault.sh
 ```
 
-Look for its Docker networks.
-
-You can simplify this by connecting NPM to the Vaultwarden network:
+Add a scheduled cron job to run nightly at 2:00 AM:
 
 ```bash
-docker network connect vaultwarden nginx-proxy-manager
-```
-
-But **check the actual NPM container name first**:
-
-```bash
-docker ps --format 'table {{.Names}}\t{{.Image}}'
-```
-
-If your NPM container is named something different, substitute that name.
-
-For example:
-
-```bash
-docker network connect vaultwarden nginx-proxy-manager
-```
-
-Verify:
-
-```bash
-docker inspect nginx-proxy-manager \
-  --format '{{json .NetworkSettings.Networks}}'
-```
-
-You should now see both NPM's existing network and:
-
-```text
-vaultwarden
-```
-
-### Why do this?
-
-Now:
-
-```text
-NPM
- │
- │ Docker network
- ▼
-vaultwarden:80
-```
-
-No host port is required.
-
----
-
-# 7. Configure AdGuard
-
-You already use AdGuard DNS rewrites.
-
-Add:
-
-```text
-vault.home.arpa → 100.83.21.64
-```
-
-In AdGuard Home:
-
-**Filters → DNS rewrites**
-
-Add:
-
-```text
-Domain:
-vault.home.arpa
-
-IP address:
-100.83.21.64
-```
-
-Then test from a client.
-
-On Windows:
-
-```powershell
-nslookup vault.home.arpa
-```
-
-You want:
-
-```text
-Name:    vault.home.arpa
-Address: 100.83.21.64
-```
-
-On Linux/macOS:
-
-```bash
-nslookup vault.home.arpa
+(crontab -l 2>/dev/null; echo "0 2 * * * /opt/homelab/vaultwarden/backup-vault.sh >> /var/log/vaultwarden_backup.log 2>&1") | crontab -
 ```
 
 ---
 
-# 8. Configure Nginx Proxy Manager
-
-Open your existing NPM:
-
-```text
-https://npm.home.arpa
-```
-
-or whatever hostname you're currently using for NPM.
-
-Create:
-
-**Proxy Hosts → Add Proxy Host**
-
-### Details
-
-**Domain Names**
-
-```text
-vault.home.arpa
-```
-
-**Scheme**
-
-```text
-http
-```
-
-**Forward Hostname/IP**
-
-```text
-vaultwarden
-```
-
-**Forward Port**
-
-```text
-80
-```
-
-Enable:
-
-```text
-Block Common Exploits
-```
-
-and:
-
-```text
-Websockets Support
-```
-
-Vaultwarden's current configuration supports WebSockets through the reverse proxy; modern deployments don't need the old separate `3012` host-port arrangement. ([GitHub][3])
-
----
-
-# 9. SSL certificate
-
-You already have:
-
-```text
-Kiran Homeserver Local CA
-```
-
-and:
-
-```text
-*.home.arpa
-```
-
-So select your existing wildcard certificate.
-
-Use:
-
-```text
-SSL Certificate:
-*.home.arpa
-```
-
-Then enable:
-
-```text
-Force SSL
-HTTP/2 Support
-```
-
-Don't request a Let's Encrypt certificate for this.
-
-This is an internal `.home.arpa` service.
-
-Your final NPM configuration should effectively be:
-
-```text
-vault.home.arpa
-       │
-       │ HTTPS
-       ▼
-NPM :443
-       │
-       │ HTTP
-       ▼
-vaultwarden:80
-```
-
----
-
-# 10. Test Vaultwarden
-
-From your computer:
-
-```text
-https://vault.home.arpa
-```
-
-You should get the Vaultwarden web interface.
-
-You should **not** get:
-
-```text
-http://192.168.1.20:xxxx
-```
-
-and you shouldn't need any port number.
-
----
-
-# 11. Create your account
-
-Now register your first account.
-
-Use a strong, unique master password.
-
-This password is extremely important.
-
-Your master password should **not** be reused anywhere else.
-
-Once your account is created, immediately go back to:
+## 7. Verification & Operational Matrix
 
 ```bash
-sudo nano /opt/stacks/vaultwarden/.env
+# 1. Verify container runtime health
+docker ps --filter "name=vaultwarden"
+
+# 2. Inspect active logs for database migrations
+docker logs --tail 30 vaultwarden
+
+# 3. Test API endpoint reachability
+curl -kI [https://vault.home.lab/alive](https://vault.home.lab/alive)
 ```
 
-Change:
-
-```dotenv
-SIGNUPS_ALLOWED=true
-```
-
-to:
-
-```dotenv
-SIGNUPS_ALLOWED=false
-```
-
-Then:
-
-```bash
-cd /opt/stacks/vaultwarden
-sudo docker compose up -d
-```
-
-Check:
-
-```bash
-docker compose ps
-```
-
-Now new registrations are disabled.
-
----
-
-# 12. Do we need the Vaultwarden admin page?
-
-For your setup, **I'd initially say no**.
-
-Vaultwarden has an `/admin` interface, but this is another sensitive attack surface.
-
-You don't need it for normal password-manager operation.
-
-So I would **not configure `ADMIN_TOKEN` initially**.
-
-If later you need advanced server configuration, we can add it and restrict access appropriately.
-
----
-
-# 13. Configure your Bitwarden clients
-
-This is one of the biggest advantages of Vaultwarden.
-
-You can use the normal Bitwarden clients.
-
-On the client, choose:
-
-**Self-hosted**
-
-Then set the server URL to:
-
-```text
-https://vault.home.arpa
-```
-
-Do this on:
-
-* Windows
-* MacBook
-* Android/iPhone
-* Browser extensions
-
-The client should synchronize with your Vaultwarden server.
-
----
-
-# 14. VERY IMPORTANT — Tailscale access
-
-Your current Tailscale address is:
-
-```text
-100.83.21.64
-```
-
-and your AdGuard rewrite points:
-
-```text
-vault.home.arpa
-        ↓
-100.83.21.64
-```
-
-That means devices connected through your Tailscale network can access the service.
-
-This is exactly what I want for your password manager.
-
-You can therefore have:
-
-```text
-Home LAN
-   │
-   └── vault.home.arpa
-           │
-           ▼
-     100.83.21.64
-
-
-Away from home
-   │
-   └── Tailscale
-           │
-           ▼
-     vault.home.arpa
-           │
-           ▼
-     100.83.21.64
-```
-
-No public port forwarding.
-
-No public DNS.
-
-No Cloudflare tunnel required.
-
-No Internet-facing Vaultwarden.
-
----
-
-# 15. Verify there is no exposed Vaultwarden port
-
-Run:
-
-```bash
-docker ps
-```
-
-The Vaultwarden line should **not** show something like:
-
-```text
-0.0.0.0:8080->80/tcp
-```
-
-That's important.
-
-You want:
-
-```text
-vaultwarden/server:latest
-```
-
-with no published host port.
-
-Check explicitly:
-
-```bash
-docker port vaultwarden
-```
-
-Ideally it returns nothing.
-
----
-
-# 16. Check your firewall situation
-
-You can also verify listening ports:
-
-```bash
-sudo ss -tulpn
-```
-
-You should see your existing:
-
-```text
-80
-443
-81
-```
-
-from NPM, but there should not be a new Vaultwarden host port.
-
----
-
-# 17. Vaultwarden data
-
-Your important data is now:
-
-```text
-/opt/stacks/vaultwarden/data/
-```
-
-Check it:
-
-```bash
-sudo ls -lah /opt/stacks/vaultwarden/data
-```
-
-You'll eventually see things such as:
-
-```text
-db.sqlite3
-attachments/
-sends/
-rsa_key.pem
-rsa_key.pub.der
-...
-```
-
-The data directory contains the SQLite database, server keys and other important Vaultwarden data. For a complete disaster-recovery backup, the entire data directory should be preserved rather than only the database. ([GitHub][4])
-
----
-
-# 18. Backup strategy for YOUR server
-
-This is the most important section.
-
-You already have:
-
-```text
-Restic
-    ↓
-/mnt/cloud/homeserverbkp/restic
-```
-
-and an external:
-
-```text
-/mnt/backup-inspect
-```
-
-So I would integrate Vaultwarden into the backup system you already built rather than introduce another backup application.
-
-Your hierarchy becomes:
-
-```text
-Vaultwarden
-    │
-    ▼
-/opt/stacks/vaultwarden
-    │
-    ├── compose.yaml
-    ├── .env
-    └── data/
-          │
-          ├── db.sqlite3
-          ├── attachments/
-          ├── sends/
-          └── rsa keys
-                    │
-                    ▼
-                 Restic
-                    │
-                    ▼
-             /mnt/cloud/
-             homeserverbkp/
-             restic
-                    │
-                    ▼
-             External HDD
-```
-
----
-
-# 19. Check your existing Restic backup
-
-Because your existing backup plan already includes `/opt/stacks`, Vaultwarden should naturally fall inside it.
-
-Check your backup script:
-
-```bash
-sudo grep -n "/opt/stacks" /usr/local/sbin/backup-homeserver
-```
-
-If your script uses:
-
-```text
-/opt/stacks
-```
-
-as a recursive backup source, you're covered.
-
-But there's one thing I want you to verify:
-
-```bash
-sudo grep -n "vaultwarden" /usr/local/sbin/backup-homeserver
-```
-
-If nothing appears, that's okay — it may be covered by `/opt/stacks`.
-
----
-
-# 20. I would add an explicit Vaultwarden backup
-
-Because this is your password manager, I would make the backup intention obvious.
-
-Create:
-
-```bash
-sudo mkdir -p /opt/stacks/vaultwarden/backups
-```
-
-But **don't actually use this as your primary backup**.
-
-Your Restic repository should remain the real backup.
-
-The local directory can be useful for a short-term recovery snapshot.
-
----
-
-# 21. Test Restic
-
-Run your existing backup:
-
-```bash
-sudo /usr/local/sbin/backup-homeserver
-```
-
-Then check:
-
-```bash
-sudo restic \
-  -r /mnt/cloud/homeserverbkp/restic \
-  snapshots
-```
-
-You should see a new snapshot.
-
----
-
-# 22. Verify Vaultwarden exists inside the snapshot
-
-Use Restic:
-
-```bash
-sudo restic \
-  -r /mnt/cloud/homeserverbkp/restic \
-  snapshots
-```
-
-Find the latest snapshot ID.
-
-Then:
-
-```bash
-sudo restic \
-  -r /mnt/cloud/homeserverbkp/restic \
-  ls <SNAPSHOT_ID> \
-  | grep vaultwarden
-```
-
-You want to see paths containing:
-
-```text
-opt/stacks/vaultwarden
-```
-
-This is an **extremely important test**.
-
-Don't assume your backup contains something just because the backup script ran successfully.
-
----
-
-# 23. External HDD copy
-
-Your existing disaster-recovery strategy is even better because you have:
-
-```text
-homeserver
-    │
-    ▼
-/mnt/cloud/homeserverbkp/restic
-    │
-    ▼
-external HDD
-```
-
-Keep doing this.
-
-For Vaultwarden, I'd consider the external copy **mandatory**.
-
-The reason is simple:
-
-If the homeserver dies and the 2TB `/mnt/cloud` disk also dies, your password manager backup should still exist somewhere else.
-
----
-
-# 24. Recovery test
-
-Once everything works, I would perform a **non-destructive restore test**.
-
-Don't immediately restore over the live Vaultwarden.
-
-Instead:
-
-```text
-Restic
-   │
-   ▼
-temporary restore directory
-   │
-   ▼
-inspect:
-   db.sqlite3
-   attachments/
-   rsa_key.*
-```
-
-For example:
-
-```bash
-mkdir -p /tmp/vaultwarden-restore-test
-```
-
-Then:
-
-```bash
-sudo restic \
-  -r /mnt/cloud/homeserverbkp/restic \
-  restore latest \
-  --target /tmp/vaultwarden-restore-test
-```
-
-Then:
-
-```bash
-sudo find /tmp/vaultwarden-restore-test/opt/stacks/vaultwarden \
-  -maxdepth 2 \
-  -type f
-```
-
-You should be able to see your Vaultwarden data.
-
----
-
-# 25. Actual disaster recovery
-
-If your Vaultwarden installation is destroyed but the rest of your homeserver survives:
-
-```bash
-cd /opt/stacks
-```
-
-Remove only the Vaultwarden installation if necessary:
-
-```bash
-sudo rm -rf /opt/stacks/vaultwarden
-```
-
-Restore it from Restic.
-
-Then:
-
-```bash
-cd /opt/stacks/vaultwarden
-```
-
-Check:
-
-```bash
-ls -lah
-```
-
-Make sure:
-
-```text
-compose.yaml
-.env
-data/
-```
-
-exist.
-
-Then:
-
-```bash
-sudo docker compose up -d
-```
-
-Your Vaultwarden database, keys and attachments should return.
-
-The Vaultwarden project specifically recommends preserving the entire data directory for full disaster recovery, not just SQLite. ([GitHub][4])
-
----
-
-# 26. One subtle but VERY important issue
-
-Your `.env` contains configuration/secrets.
-
-Therefore:
-
-```text
-/opt/stacks/vaultwarden/.env
-```
-
-must also be included in your Restic backup.
-
-Check:
-
-```bash
-sudo ls -la /opt/stacks/vaultwarden/
-```
-
-You should have:
-
-```text
-.env
-compose.yaml
-data/
-```
-
-Your Restic backup needs all three.
-
----
-
-# 27. Permissions
-
-Don't start changing ownership unnecessarily.
-
-Check:
-
-```bash
-sudo ls -ld /opt/stacks/vaultwarden
-sudo ls -ld /opt/stacks/vaultwarden/data
-```
-
-The Docker container must be able to write to `data`.
-
-If Vaultwarden starts and creates:
-
-```text
-db.sqlite3
-```
-
-you're fine.
-
----
-
-# 28. Updating Vaultwarden
-
-Don't blindly run:
-
-```bash
-docker compose down -v
-```
-
-**Never use `-v` here.**
-
-That can remove Docker volumes, and although our data is bind-mounted, making destructive commands a habit around a password manager is dangerous.
-
-Normal update:
-
-```bash
-cd /opt/stacks/vaultwarden
-sudo docker compose pull
-sudo docker compose up -d
-```
-
-Then:
-
-```bash
-sudo docker compose logs --tail=100
-```
-
-And test:
-
-```text
-https://vault.home.arpa
-```
-
----
-
-# 29. Before every major update
-
-I'd make a Restic snapshot first:
-
-```bash
-sudo /usr/local/sbin/backup-homeserver
-```
-
-Then update:
-
-```bash
-cd /opt/stacks/vaultwarden
-sudo docker compose pull
-sudo docker compose up -d
-```
-
-This gives you:
-
-```text
-Backup
-  ↓
-Update
-  ↓
-Test
-  ↓
-Keep/restore
-```
-
-rather than:
-
-```text
-Update
-  ↓
-Something breaks
-  ↓
-Where's my backup?
-```
-
----
-
-# 30. Security settings I recommend
-
-For your particular installation:
-
-| Setting                      | Recommendation                  |
-| ---------------------------- | ------------------------------- |
-| Internet exposure            | **No**                          |
-| Tailscale                    | **Yes**                         |
-| NPM                          | **Yes**                         |
-| HTTPS                        | **Yes**                         |
-| `.home.arpa`                 | **Yes**                         |
-| Public DNS                   | **No**                          |
-| Port forwarding              | **No**                          |
-| Signup                       | **Disable after first account** |
-| 2FA                          | **Enable**                      |
-| Strong master password       | **Mandatory**                   |
-| Admin page                   | **Don't enable initially**      |
-| Database                     | **SQLite**                      |
-| Database backup              | **Yes**                         |
-| Entire data directory backup | **Yes**                         |
-| External backup              | **Yes**                         |
-| Backup restore test          | **Yes**                         |
-
----
-
-# 31. Your final homeserver layout
-
-This fits nicely into the architecture you've already established:
-
-```text
-/opt/stacks/
-│
-├── adguardhome/
-├── nginx-proxy-manager/
-├── seafile/
-├── bookorbit/
-├── navidrome/
-├── jellyfin/
-├── qbittorrent/
-├── metube/
-├── portainer/
-├── immich/
-│
-└── vaultwarden/
-    ├── compose.yaml
-    ├── .env
-    └── data/
-        ├── db.sqlite3
-        ├── attachments/
-        ├── sends/
-        ├── rsa_key.pem
-        └── ...
-```
-
-And access:
-
-```text
-adguard.home.arpa
-npm.home.arpa
-drive.home.arpa
-books.home.arpa
-music.home.arpa
-...
-vault.home.arpa   ← password manager
-```
-
----
-
-# 32. One change I'd make to your overall security model
-
-Once Vaultwarden is working, I would **not store the Vaultwarden master password in Vaultwarden**.
-
-Instead, keep the master password available through a separate recovery mechanism.
-
-For example:
-
-```text
-Vaultwarden master password
-        │
-        ├── Memorized
-        │
-        └── Emergency offline copy
-                  │
-                  ▼
-             Secure location
-```
-
-And your recovery information should include:
-
-```text
-Vaultwarden URL:
-https://vault.home.arpa
-
-Homeserver:
-192.168.1.20
-
-Tailscale:
-100.83.21.64
-
-Vaultwarden stack:
- /opt/stacks/vaultwarden
-
-Backup repository:
- /mnt/cloud/homeserverbkp/restic
-```
-
-**Do not put the master password itself in your normal homeserver documentation or Obsidian notes.**
-
----
-
-## The deployment sequence I'd actually follow
-
-Don't try to do everything at once. Follow this order:
-
-```text
-1. Create /opt/stacks/vaultwarden
-              ↓
-2. Create .env
-              ↓
-3. Create compose.yaml
-              ↓
-4. docker compose up -d
-              ↓
-5. Connect NPM to Vaultwarden Docker network
-              ↓
-6. Add vault.home.arpa to AdGuard
-              ↓
-7. Configure NPM proxy host
-              ↓
-8. Configure *.home.arpa certificate
-              ↓
-9. Open https://vault.home.arpa
-              ↓
-10. Create your account
-              ↓
-11. Disable SIGNUPS_ALLOWED
-              ↓
-12. Enable 2FA
-              ↓
-13. Configure Bitwarden clients
-              ↓
-14. Run backup-homeserver
-              ↓
-15. Verify Vaultwarden appears in Restic
-              ↓
-16. Copy backup to external HDD
-              ↓
-17. Perform a test restore
-```
-
-That gives you a **properly integrated password-management service rather than simply another Docker container**.
-
-One current upstream detail worth keeping in mind: Vaultwarden's official repository recommends the `vaultwarden/server` image and persistent `/data`; its documentation also points users to the Wiki for detailed configuration. ([GitHub][1])
-
-If you want to proceed interactively, **start with steps 1–5 only**. Paste the output of `docker ps` and your existing NPM container/network information, and I can adapt the network connection commands to your *actual* current Docker setup before you touch NPM.
-
-[1]: https://github.com/dani-garcia/vaultwarden/blob/main/README.md?plain=1&utm_source=chatgpt.com "vaultwarden/README.md at main · dani-garcia/vaultwarden · GitHub"
-[2]: https://github.com/MNLaugh/vaultwarden?utm_source=chatgpt.com "GitHub - MNLaugh/vaultwarden: Deploy Unofficial Bitwarden compatible server written in Rust in a Docker container with Traefik as a reverse proxy and HTTP → HTTPS redirection · GitHub"
-[3]: https://github.com/oehrn/Vaultwarden?utm_source=chatgpt.com "GitHub - oehrn/Vaultwarden: Self-hosted Vaultwarden compose stack · GitHub"
-[4]: https://github.com/phi0x/vaultwarden/blob/main/README.md?utm_source=chatgpt.com "vaultwarden/README.md at main · phi0x/vaultwarden · GitHub"
+### Operational Troubleshooting Matrix
+
+| Symptom / Task | Diagnostic & Remediation |
+| :--- | :--- |
+| **"Cannot decrypt vault / WebCrypto error"** | Ensure the connection is strictly over HTTPS. Browsers disable WebCrypto APIs on plain HTTP (unencrypted) origins. |
+| **Admin Panel 404** | Verify `ADMIN_TOKEN` is declared in `.env`. Access via `https://vault.home.lab/admin`. |
+| **New Users Cannot Register** | `SIGNUPS_ALLOWED=false` is enforced for security. Log into the `/admin` portal and issue an invitation email or link. |
+| **WebSocket Sync Fails** | Ensure reverse proxy forwards `/notifications/hub` with HTTP upgrade headers: `Upgrade $http_upgrade; Connection "upgrade";`. |

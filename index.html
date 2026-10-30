@@ -60,19 +60,26 @@
             font-size: 14px;
             display: flex;
             align-items: center;
-        .button {
-            display: inline-flex;
-            align-items: center;
-            background-color: #6200ea;
-            color: white;
+                }
+            .notice .material-icons { color: #ff9800; margin-right: 12px; }
+        .link-item {
             text-decoration: none;
-            padding: 10px 20px;
-            border-radius: 4px;
-            font-weight: 500;
-            margin-top: 20px;
-}
-        }
-        .notice .material-icons { color: #ff9800; margin-right: 12px; }
+            color: #333;
+            padding: 10px 12px;
+            margin: 0 -12px 12px -12px;
+            border-radius: 6px;
+            transition: background-color 0.2s ease;
+            cursor: pointer;
+                    }
+            .link-item:hover {
+                background-color: #f0f0f0;
+                            }
+            .link-item .arrow {
+                margin-left: auto;
+                margin-right: 0;
+                color: #bdbdbd;
+                font-size: 18px;
+            }
     </style>
 </head>
 <body>
@@ -108,10 +115,12 @@
                 <span class="material-icons">sports_esports</span>
                 PC Gaming
             </div>
-            <a href="tutorials.html" class="button">
-                <span class="material-icons" style="margin-right: 8px; color: white;">school</span>
-                Read My Tutorials
-            </a>      
+            <div class="section-title" style="margin-top: 24px;">Resources</div>
+                    <a href="tutorials.html" class="list-item link-item">
+                    <span class="material-icons">school</span>
+                        Read My Tutorials
+                    <span class="material-icons arrow">arrow_forward_ios</span>
+                    </a>  
             <div class="notice">
                 <span class="material-icons">construction</span>
                 This website is currently under construction. Check back soon for updates.

@@ -3,24 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Linux Server Administration Guide - Kiran Prasad Sankhi</title>
-    <meta name="description" content="Practical Linux System Administration Tutorial for an Ubuntu Home/File Server (24.04 LTS). Covers storage, permissions, rsync, Docker compose, and maintenance.">
+    <title>Tutorials &amp; Technical Guides - Kiran Prasad Sankhi</title>
+    <meta name="description" content="Curated tutorials, homelab notes, and administration reference guides by Kiran Prasad Sankhi. Covers Linux servers, storage pools, Docker, and self-hosted services.">
     <link rel="canonical" href="https://kiranpsankhi.com.np/tutorials.html">
 
     <!-- Open Graph -->
-    <meta property="og:type" content="article">
-    <meta property="og:title" content="Linux File Server Administration Guide - Kiran Prasad Sankhi">
-    <meta property="og:description" content="Comprehensive reference guide for Ubuntu Server 24.04 LTS, Docker containers, storage pools, and Linux CLI administration.">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Tutorials &amp; Technical Guides - Kiran Prasad Sankhi">
+    <meta property="og:description" content="Explore hands-on guides for Linux file servers, Docker, self-hosting, and systems administration.">
     <meta property="og:url" content="https://kiranpsankhi.com.np/tutorials.html">
 
     <!-- Fonts & Icons -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-
-    <!-- Load the zero-md web component -->
-    <script type="module" src="https://cdn.jsdelivr.net/gh/zerodevx/zero-md@2/dist/zero-md.min.js"></script>
 
     <style>
         :root {
@@ -32,7 +29,7 @@
             --bg-page: #f8fafc;
             --bg-card: #ffffff;
             --border-color: #e2e8f0;
-            --sidebar-width: 300px;
+            --badge-bg: #f1f5f9;
         }
 
         * {
@@ -46,38 +43,33 @@
             padding: 0;
             color: var(--text-main);
             line-height: 1.6;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
         }
 
-        /* Top Progress Bar */
-        #progress-bar {
-            position: fixed;
-            top: 0;
-            left: 0;
-            height: 3px;
-            background: linear-gradient(90deg, var(--primary), #00e5ff);
-            width: 0%;
-            z-index: 1000;
-            transition: width 0.1s ease;
-        }
-
-        /* Main Top Header */
+        /* Top Header */
         header.site-header {
             background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
             color: white;
-            padding: 16px 24px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            position: sticky;
-            top: 0;
-            z-index: 900;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+            padding: 24px 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
         }
 
-        .header-left {
+        .header-inner {
+            max-width: 1080px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+
+        .header-title-area {
             display: flex;
             align-items: center;
-            gap: 16px;
+            gap: 14px;
         }
 
         .back-link {
@@ -85,12 +77,12 @@
             text-decoration: none;
             display: inline-flex;
             align-items: center;
-            padding: 6px 12px;
-            border-radius: 6px;
+            padding: 8px 14px;
+            border-radius: 8px;
             background: rgba(255,255,255,0.15);
             font-size: 14px;
             font-weight: 500;
-            transition: background 0.2s ease;
+            transition: background 0.2s;
         }
 
         .back-link:hover {
@@ -102,694 +94,522 @@
             margin-right: 6px;
         }
 
-        .header-title h1 {
+        .header-title-area h1 {
             margin: 0;
-            font-size: 18px;
-            font-weight: 500;
+            font-size: 22px;
+            font-weight: 600;
             letter-spacing: -0.3px;
         }
 
-        .header-badges {
-            display: flex;
-            gap: 8px;
-            align-items: center;
+        .header-tagline {
+            font-size: 13.5px;
+            opacity: 0.9;
+            margin-top: 3px;
         }
 
-        .badge {
-            background: rgba(255,255,255,0.2);
-            color: white;
-            padding: 4px 10px;
-            border-radius: 12px;
-            font-size: 12px;
-            font-weight: 500;
-        }
-
-        /* Layout Container */
-        .tutorial-container {
-            max-width: 1300px;
-            margin: 32px auto;
+        /* Container */
+        .hub-container {
+            max-width: 1080px;
+            width: 100%;
+            margin: 36px auto 60px;
             padding: 0 20px;
-            display: flex;
-            gap: 32px;
-            align-items: flex-start;
+            flex-grow: 1;
         }
 
-        /* Sidebar: Table of Contents */
-        aside.toc-sidebar {
-            width: var(--sidebar-width);
-            flex-shrink: 0;
-            position: sticky;
-            top: 85px;
-            max-height: calc(100vh - 110px);
+        /* Search & Filter Controls */
+        .controls-card {
             background: var(--bg-card);
             border: 1px solid var(--border-color);
-            border-radius: 10px;
-            padding: 20px;
+            border-radius: 12px;
+            padding: 20px 24px;
+            margin-bottom: 28px;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.03);
             display: flex;
             flex-direction: column;
-            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+            gap: 16px;
         }
 
-        .toc-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 12px;
-        }
-
-        .toc-header h2 {
-            margin: 0;
-            font-size: 14px;
-            text-transform: uppercase;
-            letter-spacing: 0.8px;
-            color: var(--primary-dark);
-            font-weight: 700;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        .toc-header .material-icons {
-            font-size: 18px;
-        }
-
-        /* Search input for filtering TOC */
-        .search-box {
+        .search-row {
             position: relative;
-            margin-bottom: 14px;
-        }
-
-        .search-box input {
             width: 100%;
-            padding: 8px 12px 8px 32px;
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-            font-size: 13px;
-            outline: none;
-            transition: border-color 0.2s;
-            font-family: inherit;
         }
 
-        .search-box input:focus {
+        .search-row input {
+            width: 100%;
+            padding: 12px 16px 12px 42px;
+            font-size: 15px;
+            font-family: inherit;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            outline: none;
+            transition: all 0.2s;
+        }
+
+        .search-row input:focus {
             border-color: var(--primary);
             box-shadow: 0 0 0 3px var(--primary-light);
         }
 
-        .search-box .material-icons {
+        .search-row .material-icons {
             position: absolute;
-            left: 8px;
+            left: 12px;
             top: 50%;
             transform: translateY(-50%);
-            font-size: 16px;
             color: var(--text-muted);
+            font-size: 20px;
         }
 
-        .toc-list {
-            overflow-y: auto;
-            padding-right: 6px;
-            margin: 0;
-            list-style: none;
-            padding-left: 0;
-            flex-grow: 1;
+        .filter-tags {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            align-items: center;
         }
 
-        .toc-list::-webkit-scrollbar {
-            width: 5px;
-        }
-        .toc-list::-webkit-scrollbar-thumb {
-            background: #cbd5e1;
-            border-radius: 4px;
-        }
-
-        .toc-item {
-            margin-bottom: 4px;
+        .filter-label {
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            margin-right: 4px;
+            letter-spacing: 0.5px;
         }
 
-        .toc-link {
-            display: block;
-            padding: 6px 10px;
-            border-radius: 6px;
-            font-size: 13px;
-            color: #475569;
-            text-decoration: none;
-            line-height: 1.4;
-            transition: all 0.15s ease;
-            cursor: pointer;
-        }
-
-        .toc-link:hover {
-            background-color: var(--primary-light);
-            color: var(--primary-dark);
-        }
-
-        .toc-link.active {
-            background-color: var(--primary-light);
-            color: var(--primary-dark);
-            font-weight: 600;
-            border-left: 3px solid var(--primary);
-        }
-
-        .toc-link.level-3 {
-            padding-left: 20px;
-            font-size: 12.5px;
-            color: #64748b;
-        }
-
-        /* Mobile Drawer Toggle */
-        .toc-mobile-toggle {
-            display: none;
-            position: fixed;
-            bottom: 24px;
-            left: 24px;
-            background: var(--primary-dark);
-            color: white;
-            border: none;
-            border-radius: 30px;
-            padding: 10px 18px;
+        .filter-btn {
+            background: var(--badge-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            padding: 6px 14px;
             font-size: 13px;
             font-weight: 500;
-            align-items: center;
-            gap: 6px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            color: var(--text-muted);
             cursor: pointer;
-            z-index: 850;
+            transition: all 0.2s;
+            font-family: inherit;
         }
 
-        /* Main Content Card */
-        main.guide-card {
+        .filter-btn:hover {
+            border-color: var(--primary);
+            color: var(--primary-dark);
+        }
+
+        .filter-btn.active {
+            background-color: var(--primary);
+            color: white;
+            border-color: var(--primary-dark);
+        }
+
+        /* Results Stats */
+        .results-summary {
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-bottom: 18px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        /* Grid */
+        .tutorial-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 22px;
+        }
+
+        /* Card */
+        .tutorial-card {
             background: var(--bg-card);
-            border-radius: 12px;
             border: 1px solid var(--border-color);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.04);
-            flex-grow: 1;
-            width: 100%;
-            max-width: 920px;
-            overflow: hidden;
-            padding: 36px 44px;
+            border-radius: 12px;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.03);
+            transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+            text-decoration: none;
+            color: inherit;
             position: relative;
         }
 
-        /* Loading Skeleton */
-        #loading-state {
-            padding: 40px 20px;
-            text-align: center;
+        .tutorial-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.06);
+            border-color: var(--primary);
+        }
+
+        .card-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 14px;
+        }
+
+        .card-category {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            color: var(--primary-dark);
+            background: var(--primary-light);
+            padding: 4px 10px;
+            border-radius: 20px;
+        }
+
+        .card-category .material-icons {
+            font-size: 14px;
+        }
+
+        .card-status {
+            font-size: 11.5px;
+            font-weight: 600;
+            padding: 3px 8px;
+            border-radius: 12px;
+            background: #e2e8f0;
+            color: #475569;
+        }
+
+        .card-status.featured {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .card-status.upcoming {
+            background: #ede9fe;
+            color: #6d28d9;
+        }
+
+        .tutorial-card h2 {
+            font-size: 18px;
+            margin: 0 0 10px 0;
+            font-weight: 600;
+            color: var(--text-main);
+            line-height: 1.35;
+        }
+
+        .tutorial-card p {
+            font-size: 14px;
+            color: var(--text-muted);
+            margin: 0 0 20px 0;
+            line-height: 1.5;
+            flex-grow: 1;
+        }
+
+        .card-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-bottom: 20px;
+        }
+
+        .card-tag {
+            font-size: 11.5px;
+            background: #f1f5f9;
+            color: #475569;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-family: 'Fira Code', monospace;
+        }
+
+        .card-footer {
+            border-top: 1px solid var(--border-color);
+            padding-top: 14px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 12.5px;
             color: var(--text-muted);
         }
 
-        .spinner {
-            width: 36px;
-            height: 36px;
-            border: 3px solid #e2e8f0;
-            border-top: 3px solid var(--primary);
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-            margin: 0 auto 16px auto;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        /* Back to top Floating Button */
-        #back-to-top {
-            position: fixed;
-            bottom: 24px;
-            right: 24px;
-            background-color: var(--primary);
-            color: white;
-            border: none;
-            border-radius: 50%;
-            width: 48px;
-            height: 48px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.15);
-            cursor: pointer;
-            display: none;
-            justify-content: center;
-            align-items: center;
-            transition: opacity 0.3s ease, transform 0.2s, background-color 0.2s;
-            opacity: 0;
-            z-index: 850;
-        }
-
-        #back-to-top.show {
+        .read-time {
             display: flex;
-            opacity: 1;
+            align-items: center;
+            gap: 4px;
         }
 
-        #back-to-top:hover {
-            background-color: var(--primary-dark);
-            transform: translateY(-2px);
+        .read-time .material-icons {
+            font-size: 15px;
         }
 
-        /* Responsive Breakpoints */
-        @media (max-width: 960px) {
-            .tutorial-container {
+        .card-action {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-weight: 600;
+            color: var(--primary-dark);
+        }
+
+        .card-action .material-icons {
+            font-size: 16px;
+            transition: transform 0.2s;
+        }
+
+        .tutorial-card:hover .card-action .material-icons {
+            transform: translateX(4px);
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-muted);
+            display: none;
+            grid-column: 1 / -1;
+        }
+
+        .empty-state .material-icons {
+            font-size: 48px;
+            color: #cbd5e1;
+            margin-bottom: 12px;
+        }
+
+        footer {
+            background: white;
+            border-top: 1px solid var(--border-color);
+            padding: 24px;
+            text-align: center;
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-top: auto;
+        }
+
+        @media (max-width: 600px) {
+            .tutorial-grid {
+                grid-template-columns: 1fr;
+            }
+            .header-inner {
                 flex-direction: column;
-                padding: 0 16px;
-            }
-
-            aside.toc-sidebar {
-                display: none;
-                position: fixed;
-                top: 0;
-                left: 0;
-                width: 85%;
-                max-width: 340px;
-                height: 100vh;
-                max-height: 100vh;
-                z-index: 1100;
-                border-radius: 0;
-                box-shadow: 4px 0 20px rgba(0,0,0,0.25);
-            }
-
-            aside.toc-sidebar.open {
-                display: flex;
-            }
-
-            .toc-backdrop {
-                display: none;
-                position: fixed;
-                top: 0;
-                left: 0;
-                width: 100vw;
-                height: 100vh;
-                background: rgba(0,0,0,0.4);
-                z-index: 1050;
-            }
-
-            .toc-backdrop.open {
-                display: block;
-            }
-
-            .toc-mobile-toggle {
-                display: flex;
-            }
-
-            main.guide-card {
-                padding: 24px 20px;
-            }
-        }
-
-        /* Print Stylesheet */
-        @media print {
-            header.site-header,
-            aside.toc-sidebar,
-            #back-to-top,
-            .toc-mobile-toggle,
-            #progress-bar {
-                display: none !important;
-            }
-
-            body {
-                background: white;
-                color: black;
-                font-size: 12pt;
-            }
-
-            main.guide-card {
-                border: none;
-                box-shadow: none;
-                padding: 0;
-                max-width: 100%;
-            }
-
-            pre, code {
-                page-break-inside: avoid;
+                align-items: flex-start;
             }
         }
     </style>
 </head>
 <body>
-    <div id="progress-bar"></div>
-
     <header class="site-header">
-        <div class="header-left">
-            <a href="index.html" class="back-link" title="Return to Home Portfolio">
-                <span class="material-icons" aria-hidden="true">arrow_back</span>
-                Home
-            </a>
-            <div class="header-title">
-                <h1>Linux Server Administration Guide</h1>
+        <div class="header-inner">
+            <div class="header-title-area">
+                <a href="index.html" class="back-link" title="Return to Home Portfolio">
+                    <span class="material-icons" aria-hidden="true">arrow_back</span>
+                    Home
+                </a>
+                <div>
+                    <h1>Documentation &amp; Tutorials</h1>
+                    <div class="header-tagline">Homelab guides, server setups, and Linux CLI references</div>
+                </div>
             </div>
-        </div>
-        <div class="header-badges">
-            <span class="badge">Ubuntu 24.04 LTS</span>
-            <span class="badge">Reference Guide</span>
         </div>
     </header>
 
-    <div class="toc-backdrop" id="toc-backdrop"></div>
-
-    <div class="tutorial-container">
-        <!-- Interactive Sidebar Table of Contents -->
-        <aside class="toc-sidebar" id="toc-sidebar">
-            <div class="toc-header">
-                <h2>
-                    <span class="material-icons" aria-hidden="true">menu_book</span>
-                    Contents
-                </h2>
-                <span id="toc-count" style="font-size: 11px; color: var(--text-muted); font-weight: 600;">114 Topics</span>
-            </div>
-
-            <div class="search-box">
+    <main class="hub-container">
+        <!-- Controls: Search & Topic Filter -->
+        <section class="controls-card" aria-label="Catalog filters">
+            <div class="search-row">
                 <span class="material-icons" aria-hidden="true">search</span>
-                <input type="text" id="toc-search" placeholder="Filter topics or commands..." aria-label="Filter topics">
+                <input type="text" id="guide-search" placeholder="Search guides, tools, or commands (e.g. Docker, rsync, storage, permissions)..." aria-label="Search guides">
             </div>
 
-            <ul class="toc-list" id="toc-list">
-                <!-- Dynamically populated from zero-md markdown headings -->
-            </ul>
-        </aside>
-
-        <!-- Main Content Area -->
-        <main class="guide-card">
-            <!-- Loading Indicator -->
-            <div id="loading-state">
-                <div class="spinner"></div>
-                <div style="font-weight: 500;">Loading Linux Server Administration Guide...</div>
-                <div style="font-size: 13px; margin-top: 4px;">Parsing 114 sections and terminal cheat sheets</div>
+            <div class="filter-tags">
+                <span class="filter-label">Filter:</span>
+                <button class="filter-btn active" data-category="all">All Topics</button>
+                <button class="filter-btn" data-category="linux">Linux Server</button>
+                <button class="filter-btn" data-category="docker">Containers &amp; Docker</button>
+                <button class="filter-btn" data-category="storage">Storage &amp; Backups</button>
+                <button class="filter-btn" data-category="networking">Networking &amp; DNS</button>
             </div>
+        </section>
 
-            <!-- Zero-MD Markdown Viewer -->
-            <zero-md id="markdown-viewer" src="tutorials/basic_terminal_guide.md">
-                <template>
-                    <style>
-                        /* Zero-MD Shadow DOM Styles */
-                        .markdown-body {
-                            font-family: 'Roboto', -apple-system, BlinkMacSystemFont, sans-serif;
-                            color: #1e293b;
-                            line-height: 1.7;
-                            font-size: 15.5px;
-                        }
+        <div class="results-summary">
+            <span id="results-count">Showing all guides</span>
+        </div>
 
-                        h1, h2, h3, h4, h5, h6 {
-                            font-family: 'Roboto', sans-serif;
-                            font-weight: 600;
-                            color: #0f172a;
-                            margin-top: 1.8em;
-                            margin-bottom: 0.6em;
-                            line-height: 1.3;
-                            scroll-margin-top: 90px;
-                        }
+        <!-- Tutorials Catalog Grid -->
+        <div class="tutorial-grid" id="tutorial-grid">
+            <!-- Featured: Linux Server Administration Guide -->
+            <a href="tutorial-viewer.html?guide=linux-server" class="tutorial-card" data-category="linux storage" data-keywords="linux server ubuntu 24.04 terminal cli bash rsync chmod chown permissions fstab systemctl journalctl ufw">
+                <div>
+                    <div class="card-top">
+                        <span class="card-category">
+                            <span class="material-icons" aria-hidden="true">terminal</span>
+                            Linux &amp; CLI
+                        </span>
+                        <span class="card-status featured">Complete &bull; 114 Topics</span>
+                    </div>
+                    <h2>Linux File Server Administration Guide</h2>
+                    <p>In-depth, hands-on handbook for Ubuntu Server 24.04 LTS. Covers directory layouts, permissions, rsync automation, disk partitioning, and everyday troubleshooting.</p>
+                    <div class="card-tags">
+                        <span class="card-tag">Ubuntu 24.04</span>
+                        <span class="card-tag">rsync</span>
+                        <span class="card-tag">ext4 / fstab</span>
+                        <span class="card-tag">bash</span>
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <span class="read-time">
+                        <span class="material-icons" aria-hidden="true">schedule</span>
+                        45 min read
+                    </span>
+                    <span class="card-action">
+                        Read Guide
+                        <span class="material-icons" aria-hidden="true">arrow_forward</span>
+                    </span>
+                </div>
+            </a>
 
-                        h1 {
-                            font-size: 28px;
-                            border-bottom: 2px solid #e2e8f0;
-                            padding-bottom: 12px;
-                            color: #00838f;
-                        }
+            <!-- Card 2: Docker Compose Homelab Blueprint (Modular addition) -->
+            <a href="tutorial-viewer.html?guide=docker-homelab" class="tutorial-card" data-category="docker" data-keywords="docker docker-compose containers compose homelab portainer reverse-proxy nginx traefik self-hosting">
+                <div>
+                    <div class="card-top">
+                        <span class="card-category">
+                            <span class="material-icons" aria-hidden="true">layers</span>
+                            Docker &amp; Containers
+                        </span>
+                        <span class="card-status">Reference</span>
+                    </div>
+                    <h2>Homelab Docker Compose Architecture</h2>
+                    <p>Structuring production-ready Compose files, persistent bind-mounts, internal bridge networks, and automatic container updates with Watchtower.</p>
+                    <div class="card-tags">
+                        <span class="card-tag">Docker Compose</span>
+                        <span class="card-tag">Portainer</span>
+                        <span class="card-tag">Volumes</span>
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <span class="read-time">
+                        <span class="material-icons" aria-hidden="true">schedule</span>
+                        18 min read
+                    </span>
+                    <span class="card-action">
+                        Read Guide
+                        <span class="material-icons" aria-hidden="true">arrow_forward</span>
+                    </span>
+                </div>
+            </a>
 
-                        h2 {
-                            font-size: 21px;
-                            border-bottom: 1px solid #e2e8f0;
-                            padding-bottom: 8px;
-                            color: #0f766e;
-                        }
+            <!-- Card 3: Storage Pools & Automated Backups -->
+            <a href="tutorial-viewer.html?guide=storage-backups" class="tutorial-card" data-category="storage" data-keywords="storage raid zfs btrfs backups rsync restic snapshots cron automount smartctl">
+                <div>
+                    <div class="card-top">
+                        <span class="card-category">
+                            <span class="material-icons" aria-hidden="true">storage</span>
+                            Storage &amp; Backups
+                        </span>
+                        <span class="card-status">Reference</span>
+                    </div>
+                    <h2>Redundant Storage Pools &amp; 3-2-1 Backups</h2>
+                    <p>Automating disk health checks with SMART, building offsite backup mirrors via encrypted Restic, and robust fstab automounting.</p>
+                    <div class="card-tags">
+                        <span class="card-tag">Restic</span>
+                        <span class="card-tag">SMART</span>
+                        <span class="card-tag">Cron</span>
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <span class="read-time">
+                        <span class="material-icons" aria-hidden="true">schedule</span>
+                        22 min read
+                    </span>
+                    <span class="card-action">
+                        Read Guide
+                        <span class="material-icons" aria-hidden="true">arrow_forward</span>
+                    </span>
+                </div>
+            </a>
 
-                        h3 {
-                            font-size: 17.5px;
-                            color: #0369a1;
-                        }
+            <!-- Card 4: Networking & Cloudflare Tunnel -->
+            <a href="tutorial-viewer.html?guide=secure-networking" class="tutorial-card" data-category="networking" data-keywords="networking cloudflare tunnels reverse-proxy ssl wireguard vpn tailscale ufw firewall dns">
+                <div>
+                    <div class="card-top">
+                        <span class="card-category">
+                            <span class="material-icons" aria-hidden="true">public</span>
+                            Networking &amp; DNS
+                        </span>
+                        <span class="card-status">Reference</span>
+                    </div>
+                    <h2>Secure Ingress: Cloudflare Tunnels &amp; VPNs</h2>
+                    <p>Exposing self-hosted applications securely without opening router ports, pairing Cloudflare Zero Trust with internal WireGuard tunnels.</p>
+                    <div class="card-tags">
+                        <span class="card-tag">Cloudflare</span>
+                        <span class="card-tag">WireGuard</span>
+                        <span class="card-tag">UFW</span>
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <span class="read-time">
+                        <span class="material-icons" aria-hidden="true">schedule</span>
+                        15 min read
+                    </span>
+                    <span class="card-action">
+                        Read Guide
+                        <span class="material-icons" aria-hidden="true">arrow_forward</span>
+                    </span>
+                </div>
+            </a>
 
-                        p, li {
-                            color: #334155;
-                        }
+            <!-- Empty State -->
+            <div class="empty-state" id="empty-state">
+                <span class="material-icons" aria-hidden="true">search_off</span>
+                <h3>No guides matched your criteria</h3>
+                <p>Try searching for a different keyword or select "All Topics".</p>
+            </div>
+        </div>
+    </main>
 
-                        /* Inline code */
-                        code:not(pre code) {
-                            font-family: 'Fira Code', monospace;
-                            background-color: #f1f5f9;
-                            color: #d946ef;
-                            padding: 2px 6px;
-                            border-radius: 4px;
-                            font-size: 13.5px;
-                            border: 1px solid #e2e8f0;
-                        }
-
-                        /* Code Blocks */
-                        pre {
-                            position: relative;
-                            background-color: #0f172a !important;
-                            border-radius: 8px;
-                            padding: 16px 20px;
-                            overflow-x: auto;
-                            box-shadow: 0 4px 8px rgba(0,0,0,0.12);
-                            border: 1px solid #1e293b;
-                        }
-
-                        pre code {
-                            font-family: 'Fira Code', 'Courier New', monospace;
-                            font-size: 13.5px;
-                            color: #e2e8f0;
-                            line-height: 1.55;
-                            display: block;
-                        }
-
-                        /* Copy Button inside Code Block */
-                        .copy-btn {
-                            position: absolute;
-                            top: 10px;
-                            right: 10px;
-                            background: rgba(255, 255, 255, 0.12);
-                            border: 1px solid rgba(255, 255, 255, 0.2);
-                            color: #cbd5e1;
-                            border-radius: 6px;
-                            padding: 4px 8px;
-                            font-size: 12px;
-                            display: flex;
-                            align-items: center;
-                            gap: 4px;
-                            cursor: pointer;
-                            transition: all 0.2s;
-                            font-family: inherit;
-                        }
-
-                        .copy-btn:hover {
-                            background: rgba(255, 255, 255, 0.25);
-                            color: white;
-                        }
-
-                        .copy-btn.copied {
-                            background: #10b981;
-                            color: white;
-                            border-color: #059669;
-                        }
-
-                        /* Blockquotes */
-                        blockquote {
-                            margin: 20px 0;
-                            padding: 14px 20px;
-                            background-color: #f0fdfa;
-                            border-left: 4px solid #00acc1;
-                            border-radius: 0 6px 6px 0;
-                            color: #134e4a;
-                            font-size: 14.5px;
-                        }
-
-                        blockquote p {
-                            margin: 0;
-                            color: #134e4a;
-                        }
-
-                        /* Tables */
-                        table {
-                            width: 100%;
-                            border-collapse: collapse;
-                            margin: 24px 0;
-                            font-size: 14px;
-                            border: 1px solid #e2e8f0;
-                            border-radius: 6px;
-                            overflow: hidden;
-                        }
-
-                        th {
-                            background-color: #f8fafc;
-                            color: #334155;
-                            font-weight: 600;
-                            padding: 10px 14px;
-                            text-align: left;
-                            border-bottom: 2px solid #cbd5e1;
-                        }
-
-                        td {
-                            padding: 10px 14px;
-                            border-bottom: 1px solid #e2e8f0;
-                            color: #475569;
-                        }
-
-                        tr:nth-child(even) td {
-                            background-color: #fcfcfd;
-                        }
-
-                        /* Warning/Notice styling */
-                        hr {
-                            border: none;
-                            height: 1px;
-                            background: #e2e8f0;
-                            margin: 32px 0;
-                        }
-                    </style>
-                </template>
-            </zero-md>
-        </main>
-    </div>
-
-    <!-- Mobile Navigation Toggle -->
-    <button class="toc-mobile-toggle" id="toc-mobile-toggle">
-        <span class="material-icons" aria-hidden="true">menu</span>
-        <span>Table of Contents</span>
-    </button>
-
-    <!-- Back to top button -->
-    <button id="back-to-top" title="Back to top" aria-label="Back to top">
-        <span class="material-icons" aria-hidden="true">arrow_upward</span>
-    </button>
+    <footer>
+        &copy; 2026 Kiran Prasad Sankhi &bull; <a href="index.html" style="color: var(--primary); text-decoration: none;">kiranpsankhi.com.np</a>
+    </footer>
 
     <script>
-        const viewer = document.getElementById('markdown-viewer');
-        const loadingState = document.getElementById('loading-state');
-        const tocList = document.getElementById('toc-list');
-        const tocSearch = document.getElementById('toc-search');
-        const progressBar = document.getElementById('progress-bar');
-        const backToTopButton = document.getElementById('back-to-top');
-        const tocSidebar = document.getElementById('toc-sidebar');
-        const tocBackdrop = document.getElementById('toc-backdrop');
-        const mobileToggle = document.getElementById('toc-mobile-toggle');
+        const searchInput = document.getElementById('guide-search');
+        const filterBtns = document.querySelectorAll('.filter-btn');
+        const cards = document.querySelectorAll('.tutorial-card');
+        const emptyState = document.getElementById('empty-state');
+        const resultsCount = document.getElementById('results-count');
 
-        let headingElements = [];
+        let activeCategory = 'all';
 
-        // 1. Reading progress bar & back-to-top visibility
-        window.addEventListener('scroll', () => {
-            const totalHeight = document.documentElement.scrollHeight - window.innerHeight;
-            const progress = (window.scrollY / totalHeight) * 100;
-            progressBar.style.width = Math.min(100, Math.max(0, progress)) + '%';
+        function filterGuides() {
+            const query = searchInput.value.toLowerCase().trim();
+            let visibleCount = 0;
 
-            if (window.scrollY > 300) {
-                backToTopButton.classList.add('show');
-            } else {
-                backToTopButton.classList.remove('show');
-            }
-        });
+            cards.forEach(card => {
+                const title = card.querySelector('h2').textContent.toLowerCase();
+                const desc = card.querySelector('p').textContent.toLowerCase();
+                const keywords = (card.getAttribute('data-keywords') || '').toLowerCase();
+                const cardCategory = card.getAttribute('data-category') || '';
 
-        backToTopButton.addEventListener('click', () => {
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-        });
+                const matchesSearch = !query || title.includes(query) || desc.includes(query) || keywords.includes(query);
+                const matchesCategory = (activeCategory === 'all') || cardCategory.includes(activeCategory);
 
-        // 2. Mobile drawer open/close
-        if (mobileToggle) {
-            mobileToggle.addEventListener('click', () => {
-                tocSidebar.classList.toggle('open');
-                tocBackdrop.classList.toggle('open');
-            });
-        }
-
-        if (tocBackdrop) {
-            tocBackdrop.addEventListener('click', () => {
-                tocSidebar.classList.remove('open');
-                tocBackdrop.classList.remove('open');
-            });
-        }
-
-        // 3. When Zero-MD finishes rendering the Markdown
-        viewer.addEventListener('zero-md-rendered', () => {
-            // Hide loading indicator
-            if (loadingState) {
-                loadingState.style.display = 'none';
-            }
-
-            const shadow = viewer.shadowRoot;
-            if (!shadow) return;
-
-            // Inject Copy Buttons into every <pre> block
-            const pres = shadow.querySelectorAll('pre');
-            pres.forEach(pre => {
-                // Avoid duplicate copy buttons
-                if (pre.querySelector('.copy-btn')) return;
-
-                const copyBtn = document.createElement('button');
-                copyBtn.className = 'copy-btn';
-                copyBtn.setAttribute('title', 'Copy code to clipboard');
-                copyBtn.innerHTML = '<span class="material-icons" style="font-size:14px;">content_copy</span> Copy';
-
-                copyBtn.addEventListener('click', async (e) => {
-                    e.stopPropagation();
-                    const code = pre.querySelector('code');
-                    const text = code ? code.innerText : pre.innerText;
-
-                    try {
-                        await navigator.clipboard.writeText(text);
-                        copyBtn.classList.add('copied');
-                        copyBtn.innerHTML = '<span class="material-icons" style="font-size:14px;">check</span> Copied!';
-                        setTimeout(() => {
-                            copyBtn.classList.remove('copied');
-                            copyBtn.innerHTML = '<span class="material-icons" style="font-size:14px;">content_copy</span> Copy';
-                        }, 2000);
-                    } catch (err) {
-                        console.error('Clipboard copy failed:', err);
-                    }
-                });
-
-                pre.appendChild(copyBtn);
-            });
-
-            // Build Dynamic Table of Contents from h2 and h3 headings
-            const headings = shadow.querySelectorAll('h2, h3');
-            tocList.innerHTML = '';
-            headingElements = [];
-
-            headings.forEach((heading, index) => {
-                const text = heading.textContent.trim();
-                if (!text) return;
-
-                // Create unique anchor ID if missing
-                const anchorId = 'section-' + index;
-                heading.setAttribute('id', anchorId);
-                headingElements.push({ id: anchorId, element: heading, text: text.toLowerCase() });
-
-                const li = document.createElement('li');
-                li.className = 'toc-item';
-
-                const a = document.createElement('a');
-                a.className = 'toc-link ' + (heading.tagName.toLowerCase() === 'h3' ? 'level-3' : 'level-2');
-                a.textContent = text;
-
-                a.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    heading.scrollIntoView({ behavior: 'smooth', block: 'start' });
-
-                    // Close mobile drawer if open
-                    tocSidebar.classList.remove('open');
-                    tocBackdrop.classList.remove('open');
-
-                    // Highlight active TOC link
-                    document.querySelectorAll('.toc-link').forEach(link => link.classList.remove('active'));
-                    a.classList.add('active');
-                });
-
-                li.appendChild(a);
-                tocList.appendChild(li);
-            });
-
-            // Update TOC Count
-            const countElem = document.getElementById('toc-count');
-            if (countElem) {
-                countElem.textContent = headings.length + ' Topics';
-            }
-        });
-
-        // 4. Live TOC Filter / Search
-        tocSearch.addEventListener('input', (e) => {
-            const query = e.target.value.toLowerCase().trim();
-            const items = tocList.querySelectorAll('.toc-item');
-
-            items.forEach(item => {
-                const linkText = item.querySelector('.toc-link').textContent.toLowerCase();
-                if (linkText.includes(query)) {
-                    item.style.display = '';
+                if (matchesSearch && matchesCategory) {
+                    card.style.display = 'flex';
+                    visibleCount++;
                 } else {
-                    item.style.display = 'none';
+                    card.style.display = 'none';
                 }
+            });
+
+            if (visibleCount === 0) {
+                emptyState.style.display = 'block';
+                resultsCount.textContent = '0 guides found';
+            } else {
+                emptyState.style.display = 'none';
+                resultsCount.textContent = `Showing ${visibleCount} guide${visibleCount === 1 ? '' : 's'}`;
+            }
+        }
+
+        // Search typing listener
+        searchInput.addEventListener('input', filterGuides);
+
+        // Category filter listener
+        filterBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                filterBtns.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                activeCategory = btn.getAttribute('data-category');
+                filterGuides();
             });
         });
     </script>

@@ -3,137 +3,310 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kiran Prasad Sankhi</title>
+    <title>Kiran Prasad Sankhi - Portfolio & Tech Notes</title>
+    <meta name="description" content="Personal portfolio and technical guides by Kiran Prasad Sankhi — Banking professional, homelab enthusiast, and Linux server administrator.">
+    <link rel="canonical" href="https://kiranpsankhi.com.np/">
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://kiranpsankhi.com.np/">
+    <meta property="og:title" content="Kiran Prasad Sankhi - Portfolio & Tech Notes">
+    <meta property="og:description" content="Banking professional, homelab enthusiast, and Linux administrator. Read guides on server configuration and self-hosting.">
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="Kiran Prasad Sankhi - Portfolio & Tech Notes">
+    <meta name="twitter:description" content="Banking professional, homelab enthusiast, and Linux administrator.">
+
+    <!-- Fonts & Icons -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+
     <style>
+        :root {
+            --primary: #00acc1;
+            --primary-dark: #00838f;
+            --primary-light: #e0f7fa;
+            --text-main: #2c3e50;
+            --text-muted: #607d8b;
+            --bg-page: #f5f7f9;
+            --bg-card: #ffffff;
+            --border-color: #e2e8f0;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
         body {
-            font-family: 'Roboto', sans-serif;
-            background-color: #f5f5f5;
+            font-family: 'Roboto', -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: var(--bg-page);
             margin: 0;
+            padding: 32px 16px;
             display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
             min-height: 100vh;
-            color: #333;
+            color: var(--text-main);
+            line-height: 1.5;
         }
+
         .card {
-            background: #fff;
-            border-radius: 8px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1), 0 1px 3px rgba(0,0,0,0.08);
-            max-width: 500px;
-            width: 90%;
+            background: var(--bg-card);
+            border-radius: 12px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.04);
+            max-width: 520px;
+            width: 100%;
             overflow: hidden;
+            border: 1px solid var(--border-color);
         }
-        .header {
-            background-color: #00acc1;
+
+        header.header {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
             color: white;
-            padding: 24px;
+            padding: 32px 24px;
             text-align: center;
         }
-        .header h1 { margin: 0; font-size: 24px; font-weight: 500; }
-        .header p { margin: 8px 0 0; opacity: 0.9; font-weight: 300; }
-        .content { padding: 24px; }
-        .section-title {
-            font-size: 14px;
+
+        header.header h1 {
+            margin: 0;
+            font-size: 26px;
             font-weight: 700;
-            color:#00acc1;
+            letter-spacing: -0.5px;
+        }
+
+        header.header p.tagline {
+            margin: 8px 0 0;
+            font-size: 15px;
+            opacity: 0.95;
+            font-weight: 300;
+        }
+
+        .content {
+            padding: 28px 24px;
+        }
+
+        .bio {
+            font-size: 14.5px;
+            color: #4a5568;
+            margin-bottom: 24px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid var(--border-color);
+            line-height: 1.6;
+        }
+
+        .section-title {
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--primary-dark);
             text-transform: uppercase;
             margin-bottom: 12px;
-            letter-spacing: 1px;
+            letter-spacing: 1.2px;
         }
+
         .list-item {
             display: flex;
             align-items: center;
             margin-bottom: 12px;
-            font-size: 16px;
+            font-size: 15px;
+            color: var(--text-main);
         }
+
         .list-item .material-icons {
-            color: #757575;
-            margin-right: 16px;
+            color: var(--text-muted);
+            margin-right: 14px;
+            font-size: 20px;
         }
-        .notice {
-            background-color: #fff3e0;
-            border-left: 4px solid #ff9800;
-            padding: 12px 16px;
-            margin-top: 24px;
-            font-size: 14px;
+
+        /* Actionable Contact Chips */
+        .social-links {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+        }
+
+        .chip {
+            display: inline-flex;
+            align-items: center;
+            padding: 8px 14px;
+            border-radius: 20px;
+            background-color: #f1f5f9;
+            color: var(--text-main);
+            text-decoration: none;
+            font-size: 13.5px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            border: 1px solid var(--border-color);
+        }
+
+        .chip .material-icons {
+            font-size: 16px;
+            margin-right: 6px;
+            color: var(--primary-dark);
+        }
+
+        .chip:hover {
+            background-color: var(--primary-light);
+            border-color: var(--primary);
+            color: var(--primary-dark);
+            transform: translateY(-1px);
+        }
+
+        /* Featured Guide Card */
+        .featured-card {
+            background-color: #f8fafc;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 16px;
+            margin: 20px 0;
+            position: relative;
+        }
+
+        .featured-badge {
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--primary-dark);
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            margin-bottom: 6px;
             display: flex;
             align-items: center;
         }
-        .notice .material-icons { color: #ff9800; margin-right: 12px; }
+
+        .featured-badge .material-icons {
+            font-size: 14px;
+            margin-right: 4px;
+        }
+
+        .featured-card h3 {
+            margin: 0 0 6px 0;
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text-main);
+        }
+
+        .featured-card p {
+            margin: 0 0 12px 0;
+            font-size: 13px;
+            color: var(--text-muted);
+            line-height: 1.45;
+        }
+
+        /* Tutorials Link */
         .link-item {
             text-decoration: none;
-            color: #333;
-            padding: 10px 12px;
-            margin: 0 -12px 12px -12px;
-            border-radius: 6px;
-            transition: background-color 0.2s ease;
+            color: var(--text-main);
+            padding: 12px 14px;
+            border-radius: 8px;
+            transition: all 0.2s ease;
             cursor: pointer;
+            border: 1px solid var(--border-color);
+            background: #fafbfc;
+            display: flex;
+            align-items: center;
         }
+
         .link-item:hover {
-            background-color: #f0f0f0;
+            background-color: var(--primary-light);
+            border-color: var(--primary);
+            color: var(--primary-dark);
         }
+
+        .link-item .material-icons.main-icon {
+            color: var(--primary);
+        }
+
         .link-item .arrow {
             margin-left: auto;
-            margin-right: 0;
-            color: #bdbdbd;
+            color: #94a3b8;
             font-size: 18px;
+            transition: transform 0.2s ease;
+        }
+
+        .link-item:hover .arrow {
+            transform: translateX(3px);
+            color: var(--primary-dark);
+        }
+
+        footer {
+            margin-top: 24px;
+            text-align: center;
+            font-size: 12px;
+            color: #94a3b8;
         }
     </style>
 </head>
 <body>
-    <div class="card">
-        <div class="header">
+    <main class="card">
+        <header class="header">
             <h1>Kiran Prasad Sankhi</h1>
-            <p>Personal Portfolio</p>
-        </div>
+            <p class="tagline">Banking Professional &amp; Tech Enthusiast</p>
+        </header>
+
         <div class="content">
+            <div class="bio">
+                Bridging core banking operations with a passion for homelab infrastructure, Linux server administration, and self-hosted cloud environments.
+            </div>
+
+            <div class="section-title">Connect</div>
+            <div class="social-links">
+                <a href="https://github.com/kiran7san-source" target="_blank" rel="noopener noreferrer" class="chip" title="GitHub Profile">
+                    <span class="material-icons" aria-hidden="true">code</span>
+                    GitHub
+                </a>
+                <a href="mailto:contact@kiranpsankhi.com.np" class="chip" title="Send Email">
+                    <span class="material-icons" aria-hidden="true">mail_outline</span>
+                    Email
+                </a>
+            </div>
+
             <div class="section-title">Profession</div>
             <div class="list-item">
-                <span class="material-icons">account_balance</span>
-                Banking Professional
+                <span class="material-icons" aria-hidden="true">account_balance</span>
+                <span>Banking Operations &amp; HR Management</span>
             </div>
-            
-            <div class="section-title" style="margin-top: 24px;">Interests & Hobbies</div>
+
+            <div class="section-title" style="margin-top: 24px;">Interests &amp; Homelab</div>
             <div class="list-item">
-                <span class="material-icons">dns</span>
-                Homelab & Self-Hosting
-            </div>
-            <div class="list-item">
-                <span class="material-icons">sports_esports</span>
-                PC Gaming
+                <span class="material-icons" aria-hidden="true">dns</span>
+                <span>Linux Server Administration &amp; Docker</span>
             </div>
             <div class="list-item">
-                <span class="material-icons">camera_alt</span>
-                Photography
+                <span class="material-icons" aria-hidden="true">cloud_done</span>
+                <span>Self-Hosting, DNS &amp; Cloudflare</span>
             </div>
-            
-            <div class="section-title" style="margin-top: 24px;">Resources</div>
-            <a href="tutorials.html" class="list-item link-item">
-                <span class="material-icons">school</span>
-                Read My Tutorials
-                <span class="material-icons arrow">arrow_forward_ios</span>
-            </a>  
-            
-            <div class="notice">
-                <span class="material-icons">construction</span>
-                This website is currently under construction. Good things are coming soon.
+            <div class="list-item">
+                <span class="material-icons" aria-hidden="true">camera_alt</span>
+                <span>Photography &amp; Visual Arts</span>
+            </div>
+            <div class="list-item">
+                <span class="material-icons" aria-hidden="true">sports_esports</span>
+                <span>PC Gaming</span>
+            </div>
+
+            <div class="section-title" style="margin-top: 24px;">Featured Guide</div>
+            <div class="featured-card">
+                <div class="featured-badge">
+                    <span class="material-icons" aria-hidden="true">star</span>
+                    Latest Documentation
+                </div>
+                <h3>Linux File Server Administration Guide</h3>
+                <p>Complete 114-section reference for Ubuntu Server 24.04 LTS, covering filesystems, permissions, rsync, Docker compose, and troubleshooting.</p>
+                <a href="tutorials.html" class="link-item">
+                    <span class="material-icons main-icon" aria-hidden="true">school</span>
+                    <span style="font-weight: 500; margin-left: 8px;">Explore Tutorials &amp; Guides</span>
+                    <span class="material-icons arrow" aria-hidden="true">arrow_forward_ios</span>
+                </a>
             </div>
         </div>
-    </div>
-    
-    <div id="last-updated" style="margin-top: 20px; font-size: 13px; color: #9e9e9e; text-align: center;"></div>
-    
-    <script>
-        const lastModified = new Date(document.lastModified);
-        const formattedDate = lastModified.toLocaleDateString('en-US', { 
-            year: 'numeric', 
-            month: 'long', 
-            day: 'numeric' 
-        });
-        document.getElementById('last-updated').textContent = "Last updated: " + formattedDate;
-    </script>
+    </main>
+
+    <footer>
+        &copy; 2026 Kiran Prasad Sankhi &bull; Kathmandu, Nepal
+    </footer>
 </body>
 </html>

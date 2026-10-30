@@ -1,617 +1,711 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tutorials &amp; Technical Guides - Kiran Prasad Sankhi</title>
-    <meta name="description" content="Curated tutorials, homelab notes, and administration reference guides by Kiran Prasad Sankhi. Covers Linux servers, storage pools, Docker, and self-hosted services.">
-    <link rel="canonical" href="https://kiranpsankhi.com.np/tutorials.html">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tutorials & Homelab Documentation | Kiran Prasad Sankhi</title>
+  <meta name="description" content="Technical tutorials, homelab blueprints, Docker services, and Linux server guides by Kiran Prasad Sankhi.">
+  <link rel="canonical" href="https://kiranpsankhi.com.np/tutorials.html">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%230284c7'><path d='M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14.5v-9l6 4.5-6 4.5z'/></svg>">
 
-    <!-- Open Graph -->
-    <meta property="og:type" content="website">
-    <meta property="og:title" content="Tutorials &amp; Technical Guides - Kiran Prasad Sankhi">
-    <meta property="og:description" content="Explore hands-on guides for Linux file servers, Docker, self-hosting, and systems administration.">
-    <meta property="og:url" content="https://kiranpsankhi.com.np/tutorials.html">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
 
-    <!-- Fonts & Icons -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card-bg: #1e293b;
+      --card-border: #334155;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent: #38bdf8;
+      --accent-hover: #0ea5e9;
+      --accent-soft: rgba(56, 189, 248, 0.12);
+      --radius: 12px;
+      --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
 
-    <style>
-        :root {
-            --primary: #00acc1;
-            --primary-dark: #00838f;
-            --primary-light: #e0f7fa;
-            --text-main: #1e293b;
-            --text-muted: #64748b;
-            --bg-page: #f8fafc;
-            --bg-card: #ffffff;
-            --border-color: #e2e8f0;
-            --badge-bg: #f1f5f9;
-        }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
 
-        * {
-            box-sizing: border-box;
-        }
+    header {
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(12px);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      border-bottom: 1px solid var(--card-border);
+      padding: 1rem 1.5rem;
+    }
 
-        body {
-            font-family: 'Roboto', -apple-system, BlinkMacSystemFont, sans-serif;
-            background-color: var(--bg-page);
-            margin: 0;
-            padding: 0;
-            color: var(--text-main);
-            line-height: 1.6;
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-        }
+    .header-inner {
+      max-width: 1280px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
 
-        /* Top Header */
-        header.site-header {
-            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
-            color: white;
-            padding: 24px 20px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      text-decoration: none;
+      color: var(--text);
+      font-weight: 700;
+      font-size: 1.1rem;
+    }
 
-        .header-inner {
-            max-width: 1080px;
-            margin: 0 auto;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 16px;
-        }
+    .nav-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.9rem;
+      font-weight: 500;
+      padding: 0.4rem 0.8rem;
+      border-radius: 8px;
+      transition: var(--transition);
+    }
+    .nav-link:hover {
+      color: var(--accent);
+      background: var(--accent-soft);
+    }
 
-        .header-title-area {
-            display: flex;
-            align-items: center;
-            gap: 14px;
-        }
+    main {
+      flex: 1;
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 3rem 1.5rem;
+      width: 100%;
+    }
 
-        .back-link {
-            color: white;
-            text-decoration: none;
-            display: inline-flex;
-            align-items: center;
-            padding: 8px 14px;
-            border-radius: 8px;
-            background: rgba(255,255,255,0.15);
-            font-size: 14px;
-            font-weight: 500;
-            transition: background 0.2s;
-        }
+    .hero-section {
+      text-align: center;
+      margin-bottom: 2.5rem;
+    }
+    .hero-title {
+      font-size: 2.3rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: 0.6rem;
+      background: linear-gradient(135deg, #f8fafc 40%, #94a3b8);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .hero-subtitle {
+      color: var(--text-muted);
+      font-size: 1.05rem;
+      max-width: 680px;
+      margin: 0 auto;
+    }
 
-        .back-link:hover {
-            background: rgba(255,255,255,0.25);
-        }
+    .search-filter-bar {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      margin-bottom: 2rem;
+      align-items: center;
+    }
 
-        .back-link .material-icons {
-            font-size: 18px;
-            margin-right: 6px;
-        }
+    .search-input-wrap {
+      position: relative;
+      width: 100%;
+      max-width: 580px;
+    }
+    .search-input-wrap input {
+      width: 100%;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      padding: 0.75rem 1rem 0.75rem 2.8rem;
+      color: var(--text);
+      font-size: 0.95rem;
+      outline: none;
+      transition: var(--transition);
+    }
+    .search-input-wrap input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.15);
+    }
+    .search-input-wrap .material-icons {
+      position: absolute;
+      left: 0.85rem;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted);
+    }
 
-        .header-title-area h1 {
-            margin: 0;
-            font-size: 22px;
-            font-weight: 600;
-            letter-spacing: -0.3px;
-        }
+    .filter-tags {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 0.5rem;
+    }
+    .filter-btn {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      color: var(--text-muted);
+      padding: 0.35rem 0.85rem;
+      border-radius: 20px;
+      font-size: 0.82rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: var(--transition);
+    }
+    .filter-btn:hover, .filter-btn.active {
+      background: var(--accent-soft);
+      border-color: var(--accent);
+      color: var(--accent);
+    }
 
-        .header-tagline {
-            font-size: 13.5px;
-            opacity: 0.9;
-            margin-top: 3px;
-        }
+    .cards-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+      gap: 1.5rem;
+    }
 
-        /* Container */
-        .hub-container {
-            max-width: 1080px;
-            width: 100%;
-            margin: 36px auto 60px;
-            padding: 0 20px;
-            flex-grow: 1;
-        }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius);
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: var(--transition);
+      text-decoration: none;
+      color: inherit;
+      position: relative;
+    }
+    .card:hover {
+      transform: translateY(-3px);
+      border-color: var(--accent);
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+    }
 
-        /* Search & Filter Controls */
-        .controls-card {
-            background: var(--bg-card);
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
-            padding: 20px 24px;
-            margin-bottom: 28px;
-            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.03);
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
-        }
+    .card-top { margin-bottom: 1.25rem; }
+    .card-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.75rem;
+    }
+    .badge {
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 0.2rem 0.55rem;
+      border-radius: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    .badge-linux { background: rgba(56, 189, 248, 0.12); color: #38bdf8; }
+    .badge-docker { background: rgba(129, 140, 248, 0.12); color: #818cf8; }
+    .badge-storage { background: rgba(245, 158, 11, 0.12); color: #f59e0b; }
+    .badge-network { background: rgba(16, 185, 129, 0.12); color: #10b981; }
+    .badge-media { background: rgba(236, 72, 153, 0.12); color: #ec4899; }
+    .badge-security { background: rgba(239, 68, 68, 0.12); color: #ef4444; }
 
-        .search-row {
-            position: relative;
-            width: 100%;
-        }
+    .read-time {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+    }
 
-        .search-row input {
-            width: 100%;
-            padding: 12px 16px 12px 42px;
-            font-size: 15px;
-            font-family: inherit;
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            outline: none;
-            transition: all 0.2s;
-        }
+    .card-title {
+      font-size: 1.15rem;
+      font-weight: 600;
+      color: var(--text);
+      line-height: 1.35;
+      margin-bottom: 0.5rem;
+    }
+    .card-desc {
+      color: var(--text-muted);
+      font-size: 0.88rem;
+      line-height: 1.5;
+    }
 
-        .search-row input:focus {
-            border-color: var(--primary);
-            box-shadow: 0 0 0 3px var(--primary-light);
-        }
+    .card-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-top: 1px solid var(--card-border);
+      padding-top: 0.9rem;
+      margin-top: auto;
+    }
+    .card-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+    }
+    .tag {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      background: rgba(255, 255, 255, 0.04);
+      padding: 0.15rem 0.45rem;
+      border-radius: 4px;
+    }
+    .read-cta {
+      color: var(--accent);
+      font-size: 0.82rem;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.2rem;
+    }
 
-        .search-row .material-icons {
-            position: absolute;
-            left: 12px;
-            top: 50%;
-            transform: translateY(-50%);
-            color: var(--text-muted);
-            font-size: 20px;
-        }
+    #no-results {
+      grid-column: 1 / -1;
+      text-align: center;
+      padding: 4rem 1rem;
+      color: var(--text-muted);
+      display: none;
+    }
 
-        .filter-tags {
-            display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
-            align-items: center;
-        }
+    footer {
+      border-top: 1px solid var(--card-border);
+      padding: 2rem 1.5rem;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      margin-top: auto;
+    }
 
-        .filter-label {
-            font-size: 12px;
-            font-weight: 700;
-            text-transform: uppercase;
-            color: var(--text-muted);
-            margin-right: 4px;
-            letter-spacing: 0.5px;
-        }
-
-        .filter-btn {
-            background: var(--badge-bg);
-            border: 1px solid var(--border-color);
-            border-radius: 20px;
-            padding: 6px 14px;
-            font-size: 13px;
-            font-weight: 500;
-            color: var(--text-muted);
-            cursor: pointer;
-            transition: all 0.2s;
-            font-family: inherit;
-        }
-
-        .filter-btn:hover {
-            border-color: var(--primary);
-            color: var(--primary-dark);
-        }
-
-        .filter-btn.active {
-            background-color: var(--primary);
-            color: white;
-            border-color: var(--primary-dark);
-        }
-
-        /* Results Stats */
-        .results-summary {
-            font-size: 13px;
-            color: var(--text-muted);
-            margin-bottom: 18px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        /* Grid */
-        .tutorial-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-            gap: 22px;
-        }
-
-        /* Card */
-        .tutorial-card {
-            background: var(--bg-card);
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
-            padding: 24px;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.03);
-            transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
-            text-decoration: none;
-            color: inherit;
-            position: relative;
-        }
-
-        .tutorial-card:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 10px 20px rgba(0,0,0,0.06);
-            border-color: var(--primary);
-        }
-
-        .card-top {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 14px;
-        }
-
-        .card-category {
-            display: inline-flex;
-            align-items: center;
-            gap: 5px;
-            font-size: 12px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.6px;
-            color: var(--primary-dark);
-            background: var(--primary-light);
-            padding: 4px 10px;
-            border-radius: 20px;
-        }
-
-        .card-category .material-icons {
-            font-size: 14px;
-        }
-
-        .card-status {
-            font-size: 11.5px;
-            font-weight: 600;
-            padding: 3px 8px;
-            border-radius: 12px;
-            background: #e2e8f0;
-            color: #475569;
-        }
-
-        .card-status.featured {
-            background: #fef3c7;
-            color: #92400e;
-        }
-
-        .card-status.upcoming {
-            background: #ede9fe;
-            color: #6d28d9;
-        }
-
-        .tutorial-card h2 {
-            font-size: 18px;
-            margin: 0 0 10px 0;
-            font-weight: 600;
-            color: var(--text-main);
-            line-height: 1.35;
-        }
-
-        .tutorial-card p {
-            font-size: 14px;
-            color: var(--text-muted);
-            margin: 0 0 20px 0;
-            line-height: 1.5;
-            flex-grow: 1;
-        }
-
-        .card-tags {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 6px;
-            margin-bottom: 20px;
-        }
-
-        .card-tag {
-            font-size: 11.5px;
-            background: #f1f5f9;
-            color: #475569;
-            padding: 3px 8px;
-            border-radius: 4px;
-            font-family: 'Fira Code', monospace;
-        }
-
-        .card-footer {
-            border-top: 1px solid var(--border-color);
-            padding-top: 14px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            font-size: 12.5px;
-            color: var(--text-muted);
-        }
-
-        .read-time {
-            display: flex;
-            align-items: center;
-            gap: 4px;
-        }
-
-        .read-time .material-icons {
-            font-size: 15px;
-        }
-
-        .card-action {
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-            font-weight: 600;
-            color: var(--primary-dark);
-        }
-
-        .card-action .material-icons {
-            font-size: 16px;
-            transition: transform 0.2s;
-        }
-
-        .tutorial-card:hover .card-action .material-icons {
-            transform: translateX(4px);
-        }
-
-        /* Empty State */
-        .empty-state {
-            text-align: center;
-            padding: 60px 20px;
-            color: var(--text-muted);
-            display: none;
-            grid-column: 1 / -1;
-        }
-
-        .empty-state .material-icons {
-            font-size: 48px;
-            color: #cbd5e1;
-            margin-bottom: 12px;
-        }
-
-        footer {
-            background: white;
-            border-top: 1px solid var(--border-color);
-            padding: 24px;
-            text-align: center;
-            font-size: 13px;
-            color: var(--text-muted);
-            margin-top: auto;
-        }
-
-        @media (max-width: 600px) {
-            .tutorial-grid {
-                grid-template-columns: 1fr;
-            }
-            .header-inner {
-                flex-direction: column;
-                align-items: flex-start;
-            }
-        }
-    </style>
+    @media (max-width: 768px) {
+      .cards-grid { grid-template-columns: 1fr; }
+      .hero-title { font-size: 1.8rem; }
+    }
+  </style>
 </head>
 <body>
-    <header class="site-header">
-        <div class="header-inner">
-            <div class="header-title-area">
-                <a href="index.html" class="back-link" title="Return to Home Portfolio">
-                    <span class="material-icons" aria-hidden="true">arrow_back</span>
-                    Home
-                </a>
-                <div>
-                    <h1>Documentation &amp; Tutorials</h1>
-                    <div class="header-tagline">Homelab guides, server setups, and Linux CLI references</div>
-                </div>
-            </div>
+
+  <header>
+    <div class="header-inner">
+      <a href="index.html" class="brand">
+        <span class="material-icons" style="color: var(--accent);" aria-hidden="true">terminal</span>
+        <span>Kiran P. Sankhi</span>
+      </a>
+      <a href="index.html" class="nav-link">
+        <span class="material-icons" style="font-size: 1.15rem;" aria-hidden="true">home</span>
+        <span>Home</span>
+      </a>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero-section">
+      <h1 class="hero-title">Technical Guides & Tutorials</h1>
+      <p class="hero-subtitle">Comprehensive documentation for self-hosting, homelab infrastructure, Docker containers, networking, and server administration.</p>
+    </section>
+
+    <div class="search-filter-bar">
+      <div class="search-input-wrap">
+        <span class="material-icons" aria-hidden="true">search</span>
+        <input type="text" id="guide-search" placeholder="Search guides, tools (e.g. docker, rsync, tailscale)...">
+      </div>
+
+      <div class="filter-tags">
+        <button class="filter-btn active" data-category="all">All (16)</button>
+        <button class="filter-btn" data-category="Linux Server">Linux Server</button>
+        <button class="filter-btn" data-category="Containers & Docker">Containers & Docker</button>
+        <button class="filter-btn" data-category="Networking">Networking</button>
+        <button class="filter-btn" data-category="Storage & Backups">Storage & Backups</button>
+        <button class="filter-btn" data-category="Media & Streaming">Media & Streaming</button>
+        <button class="filter-btn" data-category="Security">Security</button>
+      </div>
+    </div>
+
+    <div class="cards-grid" id="cards-grid">
+
+      <!-- 1. basic_terminal_guide.md -->
+      <a href="tutorial-viewer.html?guide=linux-server" class="card" data-category="Linux Server" data-keywords="linux server terminal cli bash permissions fstab storage cron rsync ufw">
+        <div class="card-top">
+          <div class="card-meta">
+            <span class="badge badge-linux">Linux Server</span>
+            <span class="read-time"><span class="material-icons" style="font-size: 0.95rem;">schedule</span> 45 min read</span>
+          </div>
+          <h2 class="card-title">Linux File Server Administration Guide</h2>
+          <p class="card-desc">Comprehensive reference covering terminal essentials, permission modeling, storage management, disks, automated tasks, and server security.</p>
         </div>
-    </header>
-
-    <main class="hub-container">
-        <!-- Controls: Search & Topic Filter -->
-        <section class="controls-card" aria-label="Catalog filters">
-            <div class="search-row">
-                <span class="material-icons" aria-hidden="true">search</span>
-                <input type="text" id="guide-search" placeholder="Search guides, tools, or commands (e.g. Docker, rsync, storage, permissions)..." aria-label="Search guides">
-            </div>
-
-            <div class="filter-tags">
-                <span class="filter-label">Filter:</span>
-                <button class="filter-btn active" data-category="all">All Topics</button>
-                <button class="filter-btn" data-category="linux">Linux Server</button>
-                <button class="filter-btn" data-category="docker">Containers &amp; Docker</button>
-                <button class="filter-btn" data-category="storage">Storage &amp; Backups</button>
-                <button class="filter-btn" data-category="networking">Networking &amp; DNS</button>
-            </div>
-        </section>
-
-        <div class="results-summary">
-            <span id="results-count">Showing all guides</span>
+        <div class="card-footer">
+          <div class="card-tags">
+            <span class="tag">CLI</span>
+            <span class="tag">Bash</span>
+            <span class="tag">Ubuntu</span>
+          </div>
+          <span class="read-cta">Read <span class="material-icons" style="font-size: 1rem;">arrow_forward</span></span>
         </div>
+      </a>
 
-        <!-- Tutorials Catalog Grid -->
-        <div class="tutorial-grid" id="tutorial-grid">
-            <!-- Featured: Linux Server Administration Guide -->
-            <a href="tutorial-viewer.html?guide=linux-server" class="tutorial-card" data-category="linux storage" data-keywords="linux server ubuntu 24.04 terminal cli bash rsync chmod chown permissions fstab systemctl journalctl ufw">
-                <div>
-                    <div class="card-top">
-                        <span class="card-category">
-                            <span class="material-icons" aria-hidden="true">terminal</span>
-                            Linux &amp; CLI
-                        </span>
-                        <span class="card-status featured">Complete &bull; 114 Topics</span>
-                    </div>
-                    <h2>Linux File Server Administration Guide</h2>
-                    <p>In-depth, hands-on handbook for Ubuntu Server 24.04 LTS. Covers directory layouts, permissions, rsync automation, disk partitioning, and everyday troubleshooting.</p>
-                    <div class="card-tags">
-                        <span class="card-tag">Ubuntu 24.04</span>
-                        <span class="card-tag">rsync</span>
-                        <span class="card-tag">ext4 / fstab</span>
-                        <span class="card-tag">bash</span>
-                    </div>
-                </div>
-                <div class="card-footer">
-                    <span class="read-time">
-                        <span class="material-icons" aria-hidden="true">schedule</span>
-                        45 min read
-                    </span>
-                    <span class="card-action">
-                        Read Guide
-                        <span class="material-icons" aria-hidden="true">arrow_forward</span>
-                    </span>
-                </div>
-            </a>
-
-            <!-- Card 2: Docker Compose Homelab Blueprint (Modular addition) -->
-            <a href="tutorial-viewer.html?guide=docker-homelab" class="tutorial-card" data-category="docker" data-keywords="docker docker-compose containers compose homelab portainer reverse-proxy nginx traefik self-hosting">
-                <div>
-                    <div class="card-top">
-                        <span class="card-category">
-                            <span class="material-icons" aria-hidden="true">layers</span>
-                            Docker &amp; Containers
-                        </span>
-                        <span class="card-status">Reference</span>
-                    </div>
-                    <h2>Homelab Docker Compose Architecture</h2>
-                    <p>Structuring production-ready Compose files, persistent bind-mounts, internal bridge networks, and automatic container updates with Watchtower.</p>
-                    <div class="card-tags">
-                        <span class="card-tag">Docker Compose</span>
-                        <span class="card-tag">Portainer</span>
-                        <span class="card-tag">Volumes</span>
-                    </div>
-                </div>
-                <div class="card-footer">
-                    <span class="read-time">
-                        <span class="material-icons" aria-hidden="true">schedule</span>
-                        18 min read
-                    </span>
-                    <span class="card-action">
-                        Read Guide
-                        <span class="material-icons" aria-hidden="true">arrow_forward</span>
-                    </span>
-                </div>
-            </a>
-
-            <!-- Card 3: Storage Pools & Automated Backups -->
-            <a href="tutorial-viewer.html?guide=storage-backups" class="tutorial-card" data-category="storage" data-keywords="storage raid zfs btrfs backups rsync restic snapshots cron automount smartctl">
-                <div>
-                    <div class="card-top">
-                        <span class="card-category">
-                            <span class="material-icons" aria-hidden="true">storage</span>
-                            Storage &amp; Backups
-                        </span>
-                        <span class="card-status">Reference</span>
-                    </div>
-                    <h2>Redundant Storage Pools &amp; 3-2-1 Backups</h2>
-                    <p>Automating disk health checks with SMART, building offsite backup mirrors via encrypted Restic, and robust fstab automounting.</p>
-                    <div class="card-tags">
-                        <span class="card-tag">Restic</span>
-                        <span class="card-tag">SMART</span>
-                        <span class="card-tag">Cron</span>
-                    </div>
-                </div>
-                <div class="card-footer">
-                    <span class="read-time">
-                        <span class="material-icons" aria-hidden="true">schedule</span>
-                        22 min read
-                    </span>
-                    <span class="card-action">
-                        Read Guide
-                        <span class="material-icons" aria-hidden="true">arrow_forward</span>
-                    </span>
-                </div>
-            </a>
-
-            <!-- Card 4: Networking & Cloudflare Tunnel -->
-            <a href="tutorial-viewer.html?guide=secure-networking" class="tutorial-card" data-category="networking" data-keywords="networking cloudflare tunnels reverse-proxy ssl wireguard vpn tailscale ufw firewall dns">
-                <div>
-                    <div class="card-top">
-                        <span class="card-category">
-                            <span class="material-icons" aria-hidden="true">public</span>
-                            Networking &amp; DNS
-                        </span>
-                        <span class="card-status">Reference</span>
-                    </div>
-                    <h2>Secure Ingress: Cloudflare Tunnels &amp; VPNs</h2>
-                    <p>Exposing self-hosted applications securely without opening router ports, pairing Cloudflare Zero Trust with internal WireGuard tunnels.</p>
-                    <div class="card-tags">
-                        <span class="card-tag">Cloudflare</span>
-                        <span class="card-tag">WireGuard</span>
-                        <span class="card-tag">UFW</span>
-                    </div>
-                </div>
-                <div class="card-footer">
-                    <span class="read-time">
-                        <span class="material-icons" aria-hidden="true">schedule</span>
-                        15 min read
-                    </span>
-                    <span class="card-action">
-                        Read Guide
-                        <span class="material-icons" aria-hidden="true">arrow_forward</span>
-                    </span>
-                </div>
-            </a>
-
-            <!-- Empty State -->
-            <div class="empty-state" id="empty-state">
-                <span class="material-icons" aria-hidden="true">search_off</span>
-                <h3>No guides matched your criteria</h3>
-                <p>Try searching for a different keyword or select "All Topics".</p>
-            </div>
+      <!-- 2. docker_installation.md -->
+      <a href="tutorial-viewer.html?guide=docker-install" class="card" data-category="Containers & Docker" data-keywords="docker docker compose engine container installation setup ubuntu debian">
+        <div class="card-top">
+          <div class="card-meta">
+            <span class="badge badge-docker">Containers & Docker</span>
+            <span class="read-time"><span class="material-icons" style="font-size: 0.95rem;">schedule</span> 10 min read</span>
+          </div>
+          <h2 class="card-title">Docker & Docker Compose Installation</h2>
+          <p class="card-desc">Step-by-step setup guide for installing the official Docker engine and Docker Compose plugin on Ubuntu/Debian with post-installation hardening.</p>
         </div>
-    </main>
+        <div class="card-footer">
+          <div class="card-tags">
+            <span class="tag">Docker</span>
+            <span class="tag">Compose</span>
+          </div>
+          <span class="read-cta">Read <span class="material-icons" style="font-size: 1rem;">arrow_forward</span></span>
+        </div>
+      </a>
 
-    <footer>
-        &copy; 2026 Kiran Prasad Sankhi &bull; <a href="index.html" style="color: var(--primary); text-decoration: none;">kiranpsankhi.com.np</a>
-    </footer>
+      <!-- 3. portainer_setup.md -->
+      <a href="tutorial-viewer.html?guide=portainer" class="card" data-category="Containers & Docker" data-keywords="portainer docker compose gui web management dashboard containers">
+        <div class="card-top">
+          <div class="card-meta">
+            <span class="badge badge-docker">Containers & Docker</span>
+            <span class="read-time"><span class="material-icons" style="font-size: 0.95rem;">schedule</span> 8 min read</span>
+          </div>
+          <h2 class="card-title">Portainer CE Web Management Setup</h2>
+          <p class="card-desc">Deploy Portainer Community Edition via Docker Compose for centralized container lifecycle, volumes, and network visual management.</p>
+        </div>
+        <div class="card-footer">
+          <div class="card-tags">
+            <span class="tag">Portainer</span>
+            <span class="tag">WebUI</span>
+          </div>
+          <span class="read-cta">Read <span class="material-icons" style="font-size: 1rem;">arrow_forward</span></span>
+        </div>
+      </a>
 
-    <script>
-        const searchInput = document.getElementById('guide-search');
-        const filterBtns = document.querySelectorAll('.filter-btn');
-        const cards = document.querySelectorAll('.tutorial-card');
-        const emptyState = document.getElementById('empty-state');
-        const resultsCount = document.getElementById('results-count');
+      <!-- 4. tailscale_setup.md -->
+      <a href="tutorial-viewer.html?guide=tailscale" class="card" data-category="Networking" data-keywords="tailscale vpn wireguard mesh remote access subnet router secure networking">
+        <div class="card-top">
+          <div class="card-meta">
+            <span class="badge badge-network">Networking</span>
+            <span class="read-time"><span class="material-icons" style="font-size: 0.95rem;">schedule</span> 10 min read</span>
+          </div>
+          <h2 class="card-title">Tailscale Mesh VPN Configuration</h2>
+          <p class="card-desc">Connect remote servers, laptops, and mobile devices over an encrypted WireGuard-based Tailscale mesh network without opening router ports.</p>
+        </div>
+        <div class="card-footer">
+          <div class="card-tags">
+            <span class="tag">Tailscale</span>
+            <span class="tag">WireGuard</span>
+            <span class="tag">VPN</span>
+          </div>
+          <span class="read-cta">Read <span class="material-icons" style="font-size: 1rem;">arrow_forward</span></span>
+        </div>
+      </a>
 
-        let activeCategory = 'all';
+      <!-- 5. tailscale_adguard_nginx.md -->
+      <a href="tutorial-viewer.html?guide=tailscale-adguard-nginx" class="card" data-category="Networking" data-keywords="tailscale adguard home nginx proxy manager npm reverse proxy dns private domain">
+        <div class="card-top">
+          <div class="card-meta">
+            <span class="badge badge-network">Networking</span>
+            <span class="read-time"><span class="material-icons" style="font-size: 0.95rem;">schedule</span> 20 min read</span>
+          </div>
+          <h2 class="card-title">Tailscale + AdGuard Home + Nginx Proxy Manager</h2>
+          <p class="card-desc">Architect a private homelab routing stack with split-horizon DNS rewrites and local reverse proxy routing restricted exclusively through Tailscale.</p>
+        </div>
+        <div class="card-footer">
+          <div class="card-tags">
+            <span class="tag">DNS</span>
+            <span class="tag">Nginx</span>
+            <span class="tag">AdGuard</span>
+          </div>
+          <span class="read-cta">Read <span class="material-icons" style="font-size: 1rem;">arrow_forward</span></span>
+        </div>
+      </a>
 
-        function filterGuides() {
-            const query = searchInput.value.toLowerCase().trim();
-            let visibleCount = 0;
+      <!-- 6. homeserver_backup.md -->
+      <a href="tutorial-viewer.html?guide=server-backup" class="card" data-category="Storage & Backups" data-keywords="homeserver backup restic snapshot rsync cron automation 3-2-1 strategy external drive">
+        <div class="card-top">
+          <div class="card-meta">
+            <span class="badge badge-storage">Storage & Backups</span>
+            <span class="read-time"><span class="material-icons" style="font-size: 0.95rem;">schedule</span> 15 min read</span>
+          </div>
+          <h2 class="card-title">Homelab Backup Strategies & Restic</h2>
+          <p class="card-desc">Automated, encrypted, deduplicated backup pipelines using Restic targeting external storage pools with scheduled cron maintenance scripts.</p>
+        </div>
+        <div class="card-footer">
+          <div class="card-tags">
+            <span class="tag">Restic</span>
+            <span class="tag">Backups</span>
+            <span class="tag">Automation</span>
+          </div>
+          <span class="read-cta">Read <span class="material-icons" style="font-size: 1rem;">arrow_forward</span></span>
+        </div>
+      </a>
 
-            cards.forEach(card => {
-                const title = card.querySelector('h2').textContent.toLowerCase();
-                const desc = card.querySelector('p').textContent.toLowerCase();
-                const keywords = (card.getAttribute('data-keywords') || '').toLowerCase();
-                const cardCategory = card.getAttribute('data-category') || '';
+      <!-- 7. samba_setup.md -->
+      <a href="tutorial-viewer.html?guide=samba" class="card" data-category="Storage & Backups" data-keywords="samba smb nas share windows linux mac network drive cifs file sharing">
+        <div class="card-top">
+          <div class="card-meta">
+            <span class="badge badge-storage">Storage & Backups</span>
+            <span class="read-time"><span class="material-icons" style="font-size: 0.95rem;">schedule</span> 12 min read</span>
+          </div>
+          <h2 class="card-title">Samba SMB Network Share Setup</h2>
+          <p class="card-desc">Configure local network file sharing across Linux, macOS, and Windows with granular user permissions, authentication, and optimized performance.</p>
+        </div>
+        <div class="card-footer">
+          <div class="card-tags">
+            <span class="tag">Samba</span>
+            <span class="tag">SMB</span>
+            <span class="tag">NAS</span>
+          </div>
+          <span class="read-cta">Read <span class="material-icons" style="font-size: 1rem;">arrow_forward</span></span>
+        </div>
+      </a>
 
-                const matchesSearch = !query || title.includes(query) || desc.includes(query) || keywords.includes(query);
-                const matchesCategory = (activeCategory === 'all') || cardCategory.includes(activeCategory);
+      <!-- 8. seafile_setup.md -->
+      <a href="tutorial-viewer.html?guide=seafile" class="card" data-category="Storage & Backups" data-keywords="seafile cloud sync private drive files nextcloud alternative docker compose">
+        <div class="card-top">
+          <div class="card-meta">
+            <span class="badge badge-storage">Storage & Backups</span>
+            <span class="read-time"><span class="material-icons" style="font-size: 0.95rem;">schedule</span> 15 min read</span>
+          </div>
+          <h2 class="card-title">Seafile Private Cloud File Sync</h2>
+          <p class="card-desc">Deploy a private, high-speed file hosting and client synchronization server powered by Docker Compose, MariaDB, and Memcached.</p>
+        </div>
+        <div class="card-footer">
+          <div class="card-tags">
+            <span class="tag">Seafile</span>
+            <span class="tag">Sync</span>
+            <span class="tag">Cloud</span>
+          </div>
+          <span class="read-cta">Read <span class="material-icons" style="font-size: 1rem;">arrow_forward</span></span>
+        </div>
+      </a>
 
-                if (matchesSearch && matchesCategory) {
-                    card.style.display = 'flex';
-                    visibleCount++;
-                } else {
-                    card.style.display = 'none';
-                }
-            });
+      <!-- 9. jellyfin_setup.md -->
+      <a href="tutorial-viewer.html?guide=jellyfin" class="card" data-category="Media & Streaming" data-keywords="jellyfin media server movies tv streaming hardware acceleration plex unc library">
+        <div class="card-top">
+          <div class="card-meta">
+            <span class="badge badge-media">Media & Streaming</span>
+            <span class="read-time"><span class="material-icons" style="font-size: 0.95rem;">schedule</span> 15 min read</span>
+          </div>
+          <h2 class="card-title">Jellyfin Media Server Deployment</h2>
+          <p class="card-desc">Deploy an open-source media streaming server with UNC library paths, hardware transcoding passthrough, and multi-device playback clients.</p>
+        </div>
+        <div class="card-footer">
+          <div class="card-tags">
+            <span class="tag">Jellyfin</span>
+            <span class="tag">Streaming</span>
+            <span class="tag">Transcode</span>
+          </div>
+          <span class="read-cta">Read <span class="material-icons" style="font-size: 1rem;">arrow_forward</span></span>
+        </div>
+      </a>
 
-            if (visibleCount === 0) {
-                emptyState.style.display = 'block';
-                resultsCount.textContent = '0 guides found';
-            } else {
-                emptyState.style.display = 'none';
-                resultsCount.textContent = `Showing ${visibleCount} guide${visibleCount === 1 ? '' : 's'}`;
-            }
+      <!-- 10. immich_setup.md -->
+      <a href="tutorial-viewer.html?guide=immich" class="card" data-category="Media & Streaming" data-keywords="immich photos google photos alternative backup machine learning faces docker compose">
+        <div class="card-top">
+          <div class="card-meta">
+            <span class="badge badge-media">Media & Streaming</span>
+            <span class="read-time"><span class="material-icons" style="font-size: 0.95rem;">schedule</span> 18 min read</span>
+          </div>
+          <h2 class="card-title">Immich Self-Hosted Photo & Video Server</h2>
+          <p class="card-desc">High-performance self-hosted Google Photos alternative with mobile background backup, facial recognition, and machine-learning search.</p>
+        </div>
+        <div class="card-footer">
+          <div class="card-tags">
+            <span class="tag">Immich</span>
+            <span class="tag">Photos</span>
+            <span class="tag">Machine Learning</span>
+          </div>
+          <span class="read-cta">Read <span class="material-icons" style="font-size: 1rem;">arrow_forward</span></span>
+        </div>
+      </a>
+
+      <!-- 11. navidrome_setup.md -->
+      <a href="tutorial-viewer.html?guide=navidrome" class="card" data-category="Media & Streaming" data-keywords="navidrome music server subsonic streaming flac mp3 audio docker compose">
+        <div class="card-top">
+          <div class="card-meta">
+            <span class="badge badge-media">Media & Streaming</span>
+            <span class="read-time"><span class="material-icons" style="font-size: 0.95rem;">schedule</span> 10 min read</span>
+          </div>
+          <h2 class="card-title">Navidrome Streaming Music Server</h2>
+          <p class="card-desc">Lightweight personal music streaming server compatible with Subsonic/Airsonic clients for smooth playback across iOS, Android, and web.</p>
+        </div>
+        <div class="card-footer">
+          <div class="card-tags">
+            <span class="tag">Navidrome</span>
+            <span class="tag">Audio</span>
+            <span class="tag">Subsonic</span>
+          </div>
+          <span class="read-cta">Read <span class="material-icons" style="font-size: 1rem;">arrow_forward</span></span>
+        </div>
+      </a>
+
+      <!-- 12. bookorbit_setup.md -->
+      <a href="tutorial-viewer.html?guide=bookorbit" class="card" data-category="Media & Streaming" data-keywords="bookorbit books calibre ebooks epub pdf reader library docker">
+        <div class="card-top">
+          <div class="card-meta">
+            <span class="badge badge-media">Media & Streaming</span>
+            <span class="read-time"><span class="material-icons" style="font-size: 0.95rem;">schedule</span> 10 min read</span>
+          </div>
+          <h2 class="card-title">Bookorbit Calibre & eBook Server Setup</h2>
+          <p class="card-desc">Modern web dashboard for organizing, viewing, and synchronizing your digital library across e-ink readers and web browsers.</p>
+        </div>
+        <div class="card-footer">
+          <div class="card-tags">
+            <span class="tag">Bookorbit</span>
+            <span class="tag">eBooks</span>
+            <span class="tag">Calibre</span>
+          </div>
+          <span class="read-cta">Read <span class="material-icons" style="font-size: 1rem;">arrow_forward</span></span>
+        </div>
+      </a>
+
+      <!-- 13. metube_setup.md -->
+      <a href="tutorial-viewer.html?guide=metube" class="card" data-category="Containers & Docker" data-keywords="metube youtube-dl yt-dlp downloader video audio web gui docker compose">
+        <div class="card-top">
+          <div class="card-meta">
+            <span class="badge badge-docker">Containers & Docker</span>
+            <span class="read-time"><span class="material-icons" style="font-size: 0.95rem;">schedule</span> 6 min read</span>
+          </div>
+          <h2 class="card-title">MeTube Web GUI Downloader Setup</h2>
+          <p class="card-desc">Self-hosted web front-end for yt-dlp supporting video and audio extraction from various video hosting sites directly to network shares.</p>
+        </div>
+        <div class="card-footer">
+          <div class="card-tags">
+            <span class="tag">MeTube</span>
+            <span class="tag">yt-dlp</span>
+          </div>
+          <span class="read-cta">Read <span class="material-icons" style="font-size: 1rem;">arrow_forward</span></span>
+        </div>
+      </a>
+
+      <!-- 14. qbittorrent_setup.md -->
+      <a href="tutorial-viewer.html?guide=qbittorrent" class="card" data-category="Containers & Docker" data-keywords="qbittorrent torrent headless webui p2p automation download docker compose">
+        <div class="card-top">
+          <div class="card-meta">
+            <span class="badge badge-docker">Containers & Docker</span>
+            <span class="read-time"><span class="material-icons" style="font-size: 0.95rem;">schedule</span> 8 min read</span>
+          </div>
+          <h2 class="card-title">qBittorrent-nox Headless Setup</h2>
+          <p class="card-desc">Run a lightweight, containerized headless torrent client complete with WebUI authentication, connection limits, and network path binding.</p>
+        </div>
+        <div class="card-footer">
+          <div class="card-tags">
+            <span class="tag">qBittorrent</span>
+            <span class="tag">P2P</span>
+          </div>
+          <span class="read-cta">Read <span class="material-icons" style="font-size: 1rem;">arrow_forward</span></span>
+        </div>
+      </a>
+
+      <!-- 15. vaultwarden_setup.md -->
+      <a href="tutorial-viewer.html?guide=vaultwarden" class="card" data-category="Security" data-keywords="vaultwarden bitwarden password manager security 2fa vault encryption docker compose">
+        <div class="card-top">
+          <div class="card-meta">
+            <span class="badge badge-security">Security</span>
+            <span class="read-time"><span class="material-icons" style="font-size: 0.95rem;">schedule</span> 15 min read</span>
+          </div>
+          <h2 class="card-title">Vaultwarden Self-Hosted Password Vault</h2>
+          <p class="card-desc">Deploy a lightweight Bitwarden-compatible password manager in Rust with HTTPS encryption, 2FA enforcement, and automated SQLite backups.</p>
+        </div>
+        <div class="card-footer">
+          <div class="card-tags">
+            <span class="tag">Vaultwarden</span>
+            <span class="tag">Security</span>
+            <span class="tag">Bitwarden</span>
+          </div>
+          <span class="read-cta">Read <span class="material-icons" style="font-size: 1rem;">arrow_forward</span></span>
+        </div>
+      </a>
+
+      <!-- 16. https_wildcard_certificate.md -->
+      <a href="tutorial-viewer.html?guide=wildcard-ssl" class="card" data-category="Security" data-keywords="https ssl wildcard certificate certbot letsencrypt dns challenge cloudflare nginx">
+        <div class="card-top">
+          <div class="card-meta">
+            <span class="badge badge-security">Security</span>
+            <span class="read-time"><span class="material-icons" style="font-size: 0.95rem;">schedule</span> 15 min read</span>
+          </div>
+          <h2 class="card-title">Wildcard HTTPS SSL Certificate Setup</h2>
+          <p class="card-desc">Obtain and auto-renew free Let's Encrypt Wildcard SSL certificates (*.domain.com) using Certbot DNS-01 challenges and Cloudflare API keys.</p>
+        </div>
+        <div class="card-footer">
+          <div class="card-tags">
+            <span class="tag">SSL</span>
+            <span class="tag">Let's Encrypt</span>
+            <span class="tag">Cloudflare</span>
+          </div>
+          <span class="read-cta">Read <span class="material-icons" style="font-size: 1rem;">arrow_forward</span></span>
+        </div>
+      </a>
+
+      <div id="no-results">
+        <span class="material-icons" style="font-size: 3rem; margin-bottom: 0.5rem; opacity: 0.4;">search_off</span>
+        <p>No guides found matching your query. Try another keyword!</p>
+      </div>
+
+    </div>
+  </main>
+
+  <footer>
+    <p>&copy; 2026 Kiran Prasad Sankhi. All rights reserved.</p>
+  </footer>
+
+  <script>
+    const searchInput = document.getElementById('guide-search');
+    const filterButtons = document.querySelectorAll('.filter-btn');
+    const cards = document.querySelectorAll('.card');
+    const noResults = document.getElementById('no-results');
+
+    let currentCategory = 'all';
+    let currentQuery = '';
+
+    function filterCards() {
+      let visibleCount = 0;
+      cards.forEach(card => {
+        const category = card.getAttribute('data-category');
+        const keywords = card.getAttribute('data-keywords') || '';
+        const title = card.querySelector('.card-title').textContent.toLowerCase();
+        const desc = card.querySelector('.card-desc').textContent.toLowerCase();
+
+        const matchesCategory = (currentCategory === 'all') || (category.includes(currentCategory));
+        const matchesQuery = !currentQuery || 
+          title.includes(currentQuery) || 
+          desc.includes(currentQuery) || 
+          keywords.includes(currentQuery);
+
+        if (matchesCategory && matchesQuery) {
+          card.style.display = 'flex';
+          visibleCount++;
+        } else {
+          card.style.display = 'none';
         }
+      });
 
-        // Search typing listener
-        searchInput.addEventListener('input', filterGuides);
+      noResults.style.display = visibleCount === 0 ? 'block' : 'none';
+    }
 
-        // Category filter listener
-        filterBtns.forEach(btn => {
-            btn.addEventListener('click', () => {
-                filterBtns.forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-                activeCategory = btn.getAttribute('data-category');
-                filterGuides();
-            });
-        });
-    </script>
+    searchInput.addEventListener('input', (e) => {
+      currentQuery = e.target.value.toLowerCase().trim();
+      filterCards();
+    });
+
+    filterButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        filterButtons.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentCategory = btn.getAttribute('data-category');
+        filterCards();
+      });
+    });
+  </script>
 </body>
 </html>

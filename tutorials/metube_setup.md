@@ -1,555 +1,189 @@
-Since you've standardized your homelab by giving each service its own Docker stack under `/opt/stacks`, we'll follow the same approach for **MeTube**. This will keep it consistent with your Jellyfin, Navidrome, Audiobookshelf, Kavita, BookOrbit, and other services. ([Reddit][1])
+# Production Web Media Ingestion: Headless MeTube & yt-dlp Deployment
 
-## What is MeTube?
+## 1. Overview & Architectural Background
+Video and audio stream extraction from digital platforms often requires running command-line tools across local workstations. When managing a headless home server or centralized NAS, managing these downloads through scattered terminal commands becomes inefficient and hard to track.
 
-MeTube is a self-hosted web interface for **yt-dlp**. It lets you download:
+**MeTube** is a self-hosted, web-based graphical interface for **yt-dlp** (the actively maintained, feature-complete fork of `youtube-dl`). It provides a lightweight, asynchronous download server capable of pulling high-resolution video streams, complete playlists, and extracted audio tracks directly onto centralized storage pools.
 
-* YouTube videos
-* Music
-* Playlists
-* Videos from hundreds of supported websites
-
-Downloads are saved directly to a folder on your server, making it a perfect companion to your media library.
-
----
-
-# Step 1: Create the Stack Directory
-
-SSH into your server:
-
-```bash
-sudo mkdir -p /opt/stacks/metube
-cd /opt/stacks/metube
-```
+### Architectural Breakdown & Core Mechanics
+* **yt-dlp Extraction Core**: Instead of maintaining fragile custom scraping logic, MeTube embeds `yt-dlp` directly as its extraction engine. This provides broad compatibility across hundreds of streaming sites, dynamic format selection (e.g., best video stream merged with highest bitrate audio via FFmpeg), and automatic geographic cookie passing.
+* **Asynchronous Task Queue & WebSockets**: MeTube is written in Python using modern asynchronous frameworks. Web clients interact over persistent WebSockets, providing real-time download progress, throughput metrics, ETA indicators, and status updates without aggressive client polling.
+* **Automatic FFmpeg Post-Processing**: Once raw audio and video chunks are downloaded from source CDNs, MeTube automatically runs internal FFmpeg routines to remux formats into standard, widely supported containers (such as `.mp4` or `.mkv`), embed video thumbnails, inject album/creator metadata tags, or extract audio tracks directly into `.mp3` or `.opus` files.
+* **Persistent Ingestion Topology**: Downloads write directly to target server mounts or Samba/NFS paths. This allows newly fetched media to be immediately discovered, indexed, and served by streaming platforms like Jellyfin or Navidrome with zero manual file transfers.
 
 ---
 
-# Step 2: Create Download Folder
+## 2. Production Homelab Use Cases
+* **Centralized Media Archiving**: Archive educational tutorials, webinars, conferences, and documentaries directly to your homelab archive with a single URL paste.
+* **Audio-Only Music Extraction**: Convert live acoustic sets, rare audio recordings, and podcast streams into tagged audio files routed straight into Navidrome libraries.
+* **Mobile & Multi-Device Drop Queue**: Access a mobile-friendly browser interface to queue multi-gigabyte downloads remotely while traveling without running client-side battery down.
+* **Automated Playlist Synchronization**: Ingest entire playlists and channel series sequentially with structured file and folder naming templates.
 
-Since your media drive is mounted at `/mnt/media`, I recommend creating a dedicated downloads directory.
+---
 
-```bash
-sudo mkdir -p /mnt/media/downloads
-sudo chown -R 1000:1000 /mnt/media/downloads
-```
+## 3. Prerequisites & Environment Planning
+* Linux host (Ubuntu 22.04/24.04 LTS or Debian 11/12) with Docker and Docker Compose installed.
+* Dedicated persistent storage mount for ingested media (e.g., `/mnt/storage/downloads/metube` or unified NAS pools).
+* Reverse proxy (Nginx Proxy Manager, Caddy, or Traefik) terminating with SSL.
+* Host domain or local FQDN (e.g., `metube.home.lab` or `metube.kiranpsankhi.com.np`).
 
-You can later organize it as:
-
-```
-/mnt/media/
-│
-├── Movies
-├── TV Shows
-├── Music
-├── Audiobooks
-├── Books
-└── Downloads
+### Directory Layout
+```text
+/opt/homelab/metube/
+├── compose.yaml
+├── .env
+├── cookies/ (optional for authenticated streaming platforms)
+└── downloads/ (or pointed to external storage /mnt/storage/downloads)
 ```
 
 ---
 
-# Step 3: Create docker-compose.yml
+## 4. Step-by-Step Implementation
+
+### Step 4.1: Prepare Host Directories
+Create the directory structure for MeTube configurations, cookies, and target download volumes:
 
 ```bash
-nano docker-compose.yml
+sudo mkdir -p /opt/homelab/metube/cookies
+sudo mkdir -p /mnt/storage/downloads/metube
+sudo chown -R $USER:$USER /opt/homelab/metube
+cd /opt/homelab/metube
 ```
 
-Paste:
+### Step 4.2: Configure Environment Variables (`.env`)
+Create `/opt/homelab/metube/.env` to customize output formats, concurrency limits, and directory sorting:
+
+```bash
+cat <<EOF> /opt/homelab/metube/.env
+# Application Defaults
+UID=1000
+GID=1000
+DOWNLOAD_DIR=/downloads
+AUDIO_DOWNLOAD_DIR=/downloads/audio
+
+# Performance & Concurrency Tuning
+MAX_CONCURRENT_DOWNLOADS=3
+DELETE_FILE_ON_TRASHCAN=true
+
+# Output File Templating (yt-dlp syntax)
+OUTPUT_TEMPLATE=%(title)s.%(ext)s
+OUTPUT_TEMPLATE_CHAPTER=%(title)s/%(section_number)03d - %(section_title)s.%(ext)s
+
+# Ingestion Presets
+DEFAULT_OPTION_FORMAT=any
+EOF
+```
+
+### Step 4.3: Deploy Docker Compose Manifest (`compose.yaml`)
+Create `/opt/homelab/metube/compose.yaml`:
 
 ```yaml
 services:
   metube:
     image: ghcr.io/alexta69/metube:latest
     container_name: metube
-
     restart: unless-stopped
-
+    env_file:
+      - .env
+    environment:
+      - URL_PREFIX=/
+    volumes:
+      - /mnt/storage/downloads/metube:/downloads
+      # Mount browser cookies file if downloading rate-limited or age-restricted content
+      - ./cookies:/cookies:ro
     ports:
       - "8081:8081"
+    networks:
+      - ingress-net
 
-    environment:
-      UID: 1000
-      GID: 1000
-      TZ: Asia/Kathmandu
-
-    volumes:
-      - /mnt/media/downloads:/downloads
+networks:
+  ingress-net:
+    external: true
 ```
 
-Save:
-
-```
-CTRL+O
-ENTER
-CTRL+X
-```
-
-This mounts your host download directory into the container so downloaded files persist outside the container. ([Reddit][2])
-
----
-
-# Step 4: Deploy with Portainer
-
-1. Open Portainer.
-2. Go to **Stacks**.
-3. Click **Add stack**.
-4. Name the stack:
-
-```
-metube
-```
-
-5. Either:
-
-   * Paste the compose file into the web editor, or
-   * Load the compose file from `/opt/stacks/metube/docker-compose.yml` if using Git/file-based workflows.
-6. Click **Deploy the stack**.
-
----
-
-# Step 5: Open MeTube
-
-Visit:
-
-```
-http://192.168.1.20:8081
-```
-
-(Replace `192.168.1.20` with your server IP if it changes.)
-
-You should see the MeTube web interface.
-
----
-
-# Step 6: Test
-
-Paste a YouTube URL, choose a format, click **Download**, and the file should appear in:
-
-```
-/mnt/media/downloads
-```
-
----
-
-# Recommended Enhancements
-
-You can customize MeTube with additional environment variables:
-
-```yaml
-environment:
-  UID: 1000
-  GID: 1000
-  TZ: Asia/Kathmandu
-
-  DOWNLOAD_DIR: /downloads
-  MAX_CONCURRENT_DOWNLOADS: 2
-  CREATE_CUSTOM_DIRS: false
-  DEFAULT_THEME: dark
-```
-
-These options control the default download location, the number of simultaneous downloads, directory creation behavior, and UI theme. ([Reddit][3])
-
----
-
-# Optional Reverse Proxy
-
-If you're already using Nginx Proxy Manager, you can expose MeTube at something like:
-
-```
-https://metube.yourdomain.com
-```
-
-instead of accessing it by port.
-
----
-
-# Final Folder Structure
-
-Your homelab would then look like:
-
-```
-/opt/stacks
-├── immich
-├── jellyfin
-├── navidrome
-├── qbittorrent
-├── audiobookshelf
-├── kavita
-├── bookorbit
-└── metube
-    └── docker-compose.yml
-
-/mnt/media
-├── Movies
-├── TV Shows
-├── Music
-├── Books
-├── Audiobooks
-└── Downloads
-```
-
-### Suggested next improvements
-
-Once MeTube is running, I recommend two enhancements that fit well with your existing media server:
-
-1. **Automatic media sorting** (using tools like FileFlows or custom scripts) so downloaded music, videos, and playlists are moved into the appropriate Jellyfin or Navidrome libraries.
-2. **Browser integration** using the MeTube browser extension or bookmarklet, allowing you to send videos directly from your browser to your home server with a single click.
-
-[1]: https://www.reddit.com/r/selfhosted/comments/1qyaedu/real_newbie_docker_compose_help_multiple_services/?utm_source=chatgpt.com "Real newbie - docker_compose help: multiple services?"
-[2]: https://www.reddit.com/r/truenas/comments/1ofalds?utm_source=chatgpt.com "TrueNas Scale Dockge MeTube"
-[3]: https://www.reddit.com/r/selfhosted/comments/1hh0w0f/guide_metube_selfhosted_youtube_downloader/?utm_source=chatgpt.com "[Guide]  MeTube — Self-hosted YouTube downloader"
-
-
-Perfect — this output tells us exactly what is happening.
-
-Your **MeTube installation is working**, and your yt-dlp version `2026.07.04` is reasonably current. The problem is **YouTube is rate-limiting/blocking the server's requests**:
-
-```text
-HTTP Error 429: Too Many Requests
-```
-
-and then:
-
-```text
-Sign in to confirm you're not a bot
-```
-
-The `Missing required Visitor Data` / PO Token warning is also part of YouTube's newer anti-bot system. yt-dlp's current documentation confirms that YouTube is increasingly requiring PO Tokens for some clients and that cookies can be needed when YouTube presents bot verification. ([GitHub][1])
-
-### I recommend we fix this with YouTube cookies first
-
-Don't change your MeTube container yet. We'll first prove that cookies solve the problem.
-
-## 1. Export your YouTube cookies
-
-Since you're using Windows/Edge (based on your browser), I'd recommend using **Firefox if you have it available**. yt-dlp's documentation specifically notes that cookie extraction tends to work better with Firefox than some Chromium setups. ([GitHub][2])
-
-The important thing is that the exported file is in Netscape format and begins with something like:
-
-```text
-# Netscape HTTP Cookie File
-```
-
-**Important:** Your cookies are effectively authentication credentials. Don't paste the contents of `cookies.txt` into this chat or upload it here.
-
-The yt-dlp documentation also recommends exporting cookies from a fresh private/incognito browser session because YouTube can rotate cookies on normal open tabs. ([GitHub][3])
-
----
-
-# 2. Put the cookie file on your server
-
-Let's create a dedicated directory:
+Launch the container:
 
 ```bash
-sudo mkdir -p /opt/stacks/metube/cookies
-```
-
-Then transfer your `cookies.txt` from your Windows PC to:
-
-```text
-/opt/stacks/metube/cookies/cookies.txt
-```
-
-You can use **SFTP/WinSCP** for this.
-
-Your directory should ultimately look like:
-
-```text
-/opt/stacks/metube/
-├── docker-compose.yml
-└── cookies/
-    └── cookies.txt
-```
-
-Then:
-
-```bash
-sudo chmod 600 /opt/stacks/metube/cookies/cookies.txt
+sudo docker compose up -d
 ```
 
 ---
 
-# 3. Modify your MeTube stack
+## 5. Reverse Proxy Configuration & WebSocket Ingress
 
-Your current compose probably has:
+Because MeTube streams live progress bars and socket events back to the client browser, ensure WebSocket connection upgrades are enabled in your reverse proxy.
 
-```yaml
-volumes:
-  - /mnt/media/downloads:/downloads
-```
+### Nginx Proxy Manager Ingress Parameters
+1. In NPM, navigate to **Hosts** ➔ **Proxy Hosts** ➔ **Add Proxy Host**:
+   * **Domain Names**: `metube.home.lab`
+   * **Scheme**: `http`
+   * **Forward Hostname / IP**: `metube` (or host IP)
+   * **Forward Port**: `8081`
+   * Check **Block Common Exploits** and **Websockets Support**.
+2. Under the **SSL** tab:
+   * Select your SSL Wildcard or local certificate.
+   * Check **Force SSL** and **HTTP/2 Support**.
+3. Under the **Advanced** tab, configure large buffer allowances to prevent socket drops during heavy playlist downloads:
 
-Change it to:
-
-```yaml
-volumes:
-  - /mnt/media/downloads:/downloads
-  - /opt/stacks/metube/cookies/cookies.txt:/cookies.txt:ro
-```
-
-And add this under `environment`:
-
-```yaml
-YTDL_OPTIONS: '{"cookiefile":"/cookies.txt"}'
-```
-
-So your complete compose should be:
-
-```yaml
-services:
-  metube:
-    image: ghcr.io/alexta69/metube:latest
-    container_name: metube
-
-    restart: unless-stopped
-
-    ports:
-      - "8081:8081"
-
-    environment:
-      UID: 1000
-      GID: 1000
-      TZ: Asia/Kathmandu
-      YTDL_OPTIONS: '{"cookiefile":"/cookies.txt"}'
-
-    volumes:
-      - /mnt/media/downloads:/downloads
-      - /opt/stacks/metube/cookies/cookies.txt:/cookies.txt:ro
+```nginx
+proxy_read_timeout 3600s;
+proxy_send_timeout 3600s;
 ```
 
 ---
 
-# 4. Redeploy in Portainer
+## 6. Authentication & Rate-Limit Bypass (Using Cookies)
 
-In Portainer:
+Certain media platforms enforce CAPTCHAs, bot detections, or age verification that prevent unauthenticated instances of `yt-dlp` from fetching media.
 
-**Stacks → metube → Editor**
-
-Update the compose configuration and click:
-
-**Update the stack**
-
-If Portainer doesn't recreate the container, run:
+To pass your personal session cookies safely into MeTube:
+1. Install an open-source browser extension (such as *Get cookies.txt LOCALLY*) in your desktop browser.
+2. Navigate to the target platform and export the current session cookies into a standardized Netscape-formatted file named `cookies.txt`.
+3. Copy this file into your server's cookie directory:
 
 ```bash
-cd /opt/stacks/metube
-docker compose down
-docker compose up -d
+sudo cp cookies.txt /opt/homelab/metube/cookies/cookies.txt
+sudo chmod 644 /opt/homelab/metube/cookies/cookies.txt
 ```
 
-Then check:
-
-```bash
-docker ps
-```
-
-You should see:
+4. Add the following environment variable to `/opt/homelab/metube/.env`:
 
 ```text
-metube    ...    Up ...
+YTDL_OPTIONS={"cookiefile":"/cookies/cookies.txt"}
+```
+
+5. Restart the container:
+
+```bash
+sudo docker compose up -d
 ```
 
 ---
 
-# 5. Test cookies directly
+## 7. Verification & Health Check
 
-Before testing through MeTube, let's test yt-dlp itself.
-
-Run:
+Verify container status and review extraction engine logs:
 
 ```bash
-docker exec -it metube yt-dlp --cookies /cookies.txt -F "https://www.youtube.com/watch?v=6TI07doT1ow"
+# 1. Verify container runtime health
+docker ps --filter "name=metube"
+
+# 2. Inspect active execution and yt-dlp update logs
+docker logs --tail 30 metube
+
+# 3. Test HTTP connectivity
+curl -kI [https://metube.home.lab](https://metube.home.lab)
 ```
 
-### What we want to see
-
-Instead of:
-
-```text
-HTTP Error 429
-```
-
-and:
-
-```text
-Sign in to confirm you're not a bot
-```
-
-you should see something like:
-
-```text
-ID  EXT   RESOLUTION ...
-18  mp4   360p
-...
-137 mp4   1080p
-140 m4a   audio only
-```
-
-If you get a list of formats, **we've fixed the main problem**.
-
-Then try the same video through MeTube.
+Open `https://metube.home.lab` in your browser. Paste any media URL, select your target container format (e.g., `MP4` or `MP3`), and confirm that the download stream finishes and commits files cleanly to `/mnt/storage/downloads/metube`.
 
 ---
 
-## One important thing about PO Tokens
+## 8. Operational Troubleshooting Matrix
 
-You may still see a warning similar to:
-
-```text
-Unable to fetch GVS PO Token
-```
-
-Don't immediately worry about that.
-
-YouTube's current PO-token enforcement is evolving. yt-dlp currently recommends using a **PO Token provider plugin** rather than manually extracting tokens, because many PO tokens are tied to individual videos and expire/change. ([GitHub][1])
-
-So our troubleshooting order should be:
-
-**First:**
-
-```text
-Cookies → test
-```
-
-If that works, we're done.
-
-**If cookies still fail:**
-
-```text
-Cookies
-   ↓
-PO Token provider
-   ↓
-MeTube
-```
-
-rather than manually copying PO tokens for every video.
-
----
-
-### One more important consideration
-
-You currently have:
-
-```text
-MeTube → /mnt/media/downloads
-```
-
-That's good. I would **not** have MeTube download directly into your Jellyfin `Movies`, `TV Shows`, or Navidrome `Music` folders. Keeping:
-
-```text
-/mnt/media/downloads
-```
-
-as an incoming/download area is much safer. Later we can set up automatic organization if you want.
-
-### Do this next
-
-For now, **don't change anything else**.
-
-Get the `cookies.txt` onto:
-
-```text
-/opt/stacks/metube/cookies/cookies.txt
-```
-
-update the compose as above, redeploy, and run:
-
-```bash
-docker exec -it metube yt-dlp --cookies /cookies.txt -F "https://www.youtube.com/watch?v=6TI07doT1ow"
-```
-
-**Send me the output of that command.** From that output we can determine whether cookies are sufficient or whether your current YouTube connection also needs a PO-token provider.
-
-[1]: https://github.com/yt-dlp/yt-dlp/wiki/Po-Token-Guide?utm_source=chatgpt.com "PO Token Guide · yt-dlp/yt-dlp Wiki · GitHub"
-[2]: https://github.com/yt-dlp/yt-dlp/wiki/FAQ?utm_source=chatgpt.com "FAQ · yt-dlp/yt-dlp Wiki · GitHub"
-[3]: https://github.com/yt-dlp/yt-dlp/wiki/Extractors/619f9fd83f6ce39a5534b4fb1a076afcacb52038?utm_source=chatgpt.com "Extractors · yt-dlp/yt-dlp Wiki · GitHub"
-
-
-Yes. Since you're using Firefox on your Windows PC, the easiest method is a Firefox cookie-export extension. yt-dlp officially supports cookies exported in Mozilla/Netscape format, and specifically mentions a Firefox `cookies.txt` exporter. ([GitHub][1])
-
-### 1. Install a cookie exporter in Firefox
-
-In Firefox, go to the Add-ons page and search for:
-
-**cookies.txt**
-
-Choose a reputable extension that exports cookies in **Netscape/Mozilla cookies.txt format**. yt-dlp's documentation specifically says the resulting file must start with either:
-
-```text
-# HTTP Cookie File
-```
-
-or
-
-```text
-# Netscape HTTP Cookie File
-```
-
-([GitHub][1])
-
-### 2. Important: use a Private Window
-
-For YouTube, I recommend doing this carefully because YouTube can rotate cookies when an existing tab is opened. yt-dlp recommends this procedure: ([GitHub][2])
-
-1. Open **Firefox → New Private Window** (`Ctrl+Shift+P`).
-2. Go to:
-
-   [YouTube](https://www.youtube.com/?utm_source=chatgpt.com)
-3. **Log in to your YouTube account.**
-4. Open a YouTube video and make sure it plays normally.
-5. Open a **new tab** in the same private window.
-6. Close the YouTube tab.
-7. Now use the cookie-export extension to export cookies.
-8. Save the file as:
-
-```text
-cookies.txt
-```
-
-9. **Do not reopen YouTube in that private window.**
-10. Close the entire private window after exporting.
-
-The reason for this somewhat strange procedure is that YouTube may rotate authentication cookies when you continue using an open YouTube session, potentially making the exported cookies unusable. ([GitHub][2])
-
-### 3. Check the file
-
-Open `cookies.txt` with Notepad.
-
-You should see something similar to:
-
-```text
-# Netscape HTTP Cookie File
-.youtube.com    TRUE    /    TRUE    ...    ...
-.youtube.com    TRUE    /    TRUE    ...    ...
-```
-
-**Don't send this file or its contents to me.** It contains authentication information and should be treated like a password.
-
-### 4. Copy it to your homeserver
-
-Using WinSCP, SFTP, or another method, copy it to:
-
-```text
-/opt/stacks/metube/cookies/cookies.txt
-```
-
-On the server:
-
-```bash
-sudo chmod 600 /opt/stacks/metube/cookies/cookies.txt
-```
-
-Then we'll test it **before changing MeTube's configuration**:
-
-```bash
-docker exec -it metube yt-dlp \
-  --cookies /cookies.txt \
-  -F "https://www.youtube.com/watch?v=6TI07doT1ow"
-```
-
-However, **one correction to my previous instructions:** before running that command, we need to make sure `/cookies.txt` is actually mounted into your container. So don't run the command until you've copied the file and added the volume mapping.
-
-If you want, I can walk you through the **Firefox → export → WinSCP → Portainer → test** process one step at a time, using your existing `/opt/stacks/metube` setup.
-
-[1]: https://github.com/yt-dlp/yt-dlp/wiki/FAQ?utm_source=chatgpt.com "FAQ · yt-dlp/yt-dlp Wiki · GitHub"
-[2]: https://github.com/yt-dlp/yt-dlp/wiki/Extractors/619f9fd83f6ce39a5534b4fb1a076afcacb52038?utm_source=chatgpt.com "Extractors · yt-dlp/yt-dlp Wiki · GitHub"
+| Symptom / Event | Root Cause | Remediation Procedure |
+| :--- | :--- | :--- |
+| **"Sign in to confirm you’re not a bot" / HTTP 429 Error** | Streaming CDN is rate-limiting or blocking requests originating from data centers or VPS IP blocks. | Export a fresh Netscape `cookies.txt` file from an active, verified browser session and mount it via `YTDL_OPTIONS`. |
+| **Download completes but fails during post-processing** | Missing or corrupted FFmpeg binary execution inside the container, or insufficient disk space for temporary remuxing. | Check `docker logs metube` for FFmpeg exit codes; ensure the host filesystem partition has at least twice the storage capacity of the target video file. |
+| **Real-time progress bar stuck or disconnected** | Reverse proxy is dropping the WebSocket handshake connection. | Ensure **Websockets Support** is toggled on in Nginx Proxy Manager, or verify `proxy_set_header Upgrade $http_upgrade;` is configured in Nginx. |
+| **Permission Denied writing files to storage** | Container process UID/GID does not have write access to host directory. | Run `sudo chown -R 1000:1000 /mnt/storage/downloads/metube` and ensure `UID=1000` / `GID=1000` are exported in `.env`. |

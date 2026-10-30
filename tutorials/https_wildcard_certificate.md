@@ -1,1250 +1,193 @@
-# Homeserver — HTTPS Setup with Wildcard `*.home.arpa` Certificate
+# Automated Public Key Infrastructure: Let's Encrypt Wildcard SSL via Certbot & Cloudflare DNS
 
-> **Purpose:** Replicate the complete HTTPS setup used on the Homeserver so that all self-hosted services are accessed securely through HTTPS using a single local wildcard certificate and Nginx Proxy Manager (NPM).
->
-> **Environment:** Ubuntu Server 24.04.x Homeserver + Docker + Nginx Proxy Manager + Tailscale + Linux Mint client + Firefox.
->
-> **Final architecture:**
->
-> `Firefox → HTTPS :443 → Nginx Proxy Manager → HTTP → Docker service`
->
-> The applications themselves do **not** need individual HTTPS certificates.
+## 1. Overview & Architectural Background
+Transport Layer Security (TLS/SSL) provides foundational privacy, authenticity, and data integrity across network communications. While modern reverse proxies make issuing certificates for public subdomains straightforward via HTTP-01 challenges, securing homelab environments accessible only through private overlay networks (like Tailscale) or internal subnets presents unique operational hurdles.
+
+This guide details obtaining and automatically renewing **Let's Encrypt Wildcard SSL Certificates (`*.yourdomain.com`)** using **Certbot** and the **Cloudflare DNS-01 API challenge**.
+
+### ACME Validation Mechanics: HTTP-01 vs. DNS-01
+The Automated Certificate Management Environment (ACME) protocol validates domain control before the Certificate Authority (Let's Encrypt) issues cryptographic certificates:
+
+* **HTTP-01 Challenge**:
+  * **Mechanism**: The ACME server attempts an inbound HTTP request to `http://<YOUR_DOMAIN>/.well-known/acme-challenge/<TOKEN>`.
+  * **Constraint**: Requires exposing inbound ports 80 and 443 directly to the public internet. It cannot issue wildcard certificates (`*.domain.com`) because an HTTP token can only prove ownership of an individual, fully qualified host address.
+* **DNS-01 Challenge**:
+  * **Mechanism**: The ACME client leverages provider APIs (Cloudflare) to provision a dynamic cryptographic `TXT` record at `_acme-challenge.<YOUR_DOMAIN>`. Let's Encrypt queries authoritative global DNS nameservers to verify record propagation.
+  * **Zero Inbound Ports**: Bypasses the need for any open inbound firewall or ISP router ports.
+  * **Wildcard Capable**: Supports issuance of universal wildcard records covering infinite third-level subdomains (`*.domain.com`, `auth.domain.com`, `nas.domain.com`) under one unified certificate pair.
 
 ---
 
-## 1. Architecture and Design
+## 2. Production Homelab Use Cases
+* **Private Network Encryption**: Secure internal homelab dashboards and reverse proxies with fully trusted CA certificates without opening public firewall ports.
+* **Wildcard Multi-Service Routing**: Issue a single unified certificate pair (`cert.pem`, `privkey.pem`) to terminate TLS across all homelab microservices (Portainer, Immich, Jellyfin, Nextcloud).
+* **Automated Zero-Touch Renewals**: Rotate short-lived 90-day certificates continuously via cron or systemd timers without manual certificate swaps.
+* **Browser Trust Compliance**: Eliminate self-signed certificate security warnings and satisfy strict WebCrypto requirements on mobile and desktop browsers.
 
-The setup uses three important components:
+---
 
-1. **Local Certificate Authority (CA)**
+## 3. Prerequisites & Environment Planning
+* Linux host (Ubuntu 22.04/24.04 LTS or Debian 11/12).
+* Administrative `sudo` privileges.
+* A registered public domain name (e.g., `yourdomain.com`) whose authoritative nameservers point to Cloudflare.
+* A scoped Cloudflare API Token with DNS record editing permissions.
 
-   * `Kiran Homeserver Local CA`
-   * Trusted by client devices.
-
-2. **Wildcard server certificate**
-
-   * `*.home.arpa`
-   * Used by Nginx Proxy Manager for all web services.
-
-3. **Nginx Proxy Manager**
-
-   * Terminates HTTPS.
-   * Uses the wildcard certificate.
-   * Proxies requests to the individual Docker services over HTTP.
-
-### Result
-
+### Directory Layout
 ```text
-Client device
-    │
-    │ HTTPS
-    │
-    ▼
-*.home.arpa
-    │
-    ▼
-Nginx Proxy Manager
-    │
-    │ HTTP
-    ▼
-Docker service
-```
-
-Example:
-
-```text
-https://photos.home.arpa
-        │
-        ▼
-Nginx Proxy Manager :443
-        │
-        ▼
-Immich :2283
+/opt/homelab/certificates/
+├── cloudflare.ini
+├── scripts/
+│   └── certbot-renew-hook.sh
+└── certs/
 ```
 
 ---
 
-# 2. Certificate Files
+## 4. Provisioning Scoped Cloudflare Credentials
 
-Certificate directory on the Homeserver:
+To minimize attack surface area, generate an API token restricted exclusively to DNS modifications rather than using your global Cloudflare account key.
 
-```text
-/opt/stacks/certificates/
-```
+### Step 4.1: Generate the Cloudflare API Token
+1. Log into the **Cloudflare Dashboard** and navigate to **My Profile** ➔ **API Tokens**.
+2. Click **Create Token** ➔ select the **Edit zone DNS** template.
+3. Configure the token permissions:
+   * **Permissions**: `Zone` | `DNS` | `Edit`
+   * **Zone Resources**: `Include` | `Specific zone` | `yourdomain.com`
+4. Set a Client IP filter (optional) and click **Continue to summary** ➔ **Create Token**.
+5. Copy the generated token string safely.
 
-Relevant files:
-
-```text
-/opt/stacks/certificates/ca/home-arpa-ca.crt
-/opt/stacks/certificates/ca/home-arpa-ca.key
-
-/opt/stacks/certificates/wildcard/home-arpa-wildcard.crt
-/opt/stacks/certificates/wildcard/home-arpa-wildcard.key
-/opt/stacks/certificates/wildcard/home-arpa-wildcard.cnf
-```
-
-### Important security rule
-
-The `.key` files are **private keys**.
-
-Do NOT distribute:
-
-```text
-home-arpa-ca.key
-home-arpa-wildcard.key
-```
-
-to client computers.
-
-Client devices only need:
-
-```text
-home-arpa-ca.crt
-```
-
-The CA private key should be backed up securely because losing it means certificates issued by that CA can no longer be reproduced.
-
----
-
-# 3. Verify the Wildcard Certificate
-
-Use:
+### Step 4.2: Store Credentials Securely on the Host
+Store your token in an access-restricted configuration file readable exclusively by root:
 
 ```bash
-sudo openssl x509 \
-  -in /opt/stacks/certificates/wildcard/home-arpa-wildcard.crt \
-  -noout \
-  -subject \
-  -issuer \
-  -dates \
-  -ext subjectAltName
-```
+sudo mkdir -p /etc/letsencrypt /opt/homelab/certificates
+sudo tee /etc/letsencrypt/cloudflare.ini <<'EOF'
+# Cloudflare API token used by Certbot
+dns_cloudflare_api_token = YOUR_CLOUDFLARE_API_TOKEN_HERE
+EOF
 
-Expected:
-
-```text
-subject=CN = *.home.arpa
-issuer=C = NP, O = Kiran Home Server, CN = Kiran Homeserver Local CA
-notBefore=Aug  7 06:08:39 2026 GMT
-notAfter=Nov  9 06:08:39 2028 GMT
-
-X509v3 Subject Alternative Name:
-    DNS:*.home.arpa
-    DNS:home.arpa
-```
-
-The important part is:
-
-```text
-DNS:*.home.arpa
-```
-
-This allows the certificate to match:
-
-```text
-photos.home.arpa
-jellyfin.home.arpa
-music.home.arpa
-books.home.arpa
-qbit.home.arpa
-...
+# Enforce strict root-only read/write privileges
+sudo chmod 600 /etc/letsencrypt/cloudflare.ini
 ```
 
 ---
 
-# 4. Verify the Certificate Against the Local CA
+## 5. Step-by-Step Implementation
 
-Run:
+### Step 5.1: Install Certbot & the Cloudflare DNS Plugin
+Install Certbot and the required Cloudflare DNS authenticator using Python package isolation or distribution package managers:
 
 ```bash
-sudo openssl verify \
-  -CAfile /opt/stacks/certificates/ca/home-arpa-ca.crt \
-  /opt/stacks/certificates/wildcard/home-arpa-wildcard.crt
+sudo apt-get update
+sudo apt-get install -y certbot python3-certbot-dns-cloudflare
 ```
 
-Expected:
-
-```text
-/opt/stacks/certificates/wildcard/home-arpa-wildcard.crt: OK
-```
-
-If this says `OK`, the wildcard certificate was correctly signed by the local CA.
-
----
-
-# 5. Verify the Wildcard Certificate Configuration
-
-The configuration used to create the wildcard certificate was:
-
-```ini
-[req]
-default_bits = 2048
-prompt = no
-default_md = sha256
-req_extensions = req_ext
-distinguished_name = dn
-
-[dn]
-CN = *.home.arpa
-
-[req_ext]
-subjectAltName = @alt_names
-
-[alt_names]
-DNS.1 = *.home.arpa
-DNS.2 = home.arpa
-```
-
-File:
-
-```text
-/opt/stacks/certificates/wildcard/home-arpa-wildcard.cnf
-```
-
-### Important
-
-The certificate must contain the wildcard hostname in **Subject Alternative Name (SAN)**.
-
-Having only:
-
-```text
-CN = *.home.arpa
-```
-
-is not sufficient for modern browsers.
-
-The required SAN is:
-
-```text
-DNS:*.home.arpa
-```
-
----
-
-# 6. Copy the CA Certificate to Client Computers
-
-The CA certificate was copied to the shared folder so that remote client computers could access it.
-
-Copy only:
-
-```text
-home-arpa-ca.crt
-```
-
-Do not copy the private keys.
-
-For example:
-
-```text
-home-arpa-ca.crt       ← safe to distribute to trusted client devices
-home-arpa-ca.key       ← KEEP PRIVATE
-home-arpa-wildcard.crt ← normally not needed on clients
-home-arpa-wildcard.key ← KEEP PRIVATE
-```
-
----
-
-# 7. Install the CA on Linux Mint
-
-On the Linux Mint client, the CA was installed into the system trust store.
-
-Copy:
-
-```text
-home-arpa-ca.crt
-```
-
-to:
-
-```text
-/usr/local/share/ca-certificates/
-```
-
-For example:
+Verify binary and plugin installation:
 
 ```bash
-sudo cp ~/home-arpa-ca.crt \
-  /usr/local/share/ca-certificates/home-arpa-ca.crt
+certbot plugins --text
 ```
+*(Ensure `dns-cloudflare` is listed in the detected plugins).*
 
-Then:
-
-```bash
-sudo update-ca-certificates
-```
-
-Verify:
+### Step 5.2: Issue the Wildcard Certificate
+Request a certificate covering both the root apex domain (`yourdomain.com`) and all immediate subdomains (`*.yourdomain.com`). Set a propagation delay (30–60 seconds) to ensure Cloudflare DNS record propagation settles before Let's Encrypt performs validation queries:
 
 ```bash
-sudo openssl verify \
-  -CAfile /etc/ssl/certs/ca-certificates.crt \
-  /usr/local/share/ca-certificates/home-arpa-ca.crt
+sudo certbot certonly \
+  --dns-cloudflare \
+  --dns-cloudflare-credentials /etc/letsencrypt/cloudflare.ini \
+  --dns-cloudflare-propagation-seconds 60 \
+  -d yourdomain.com \
+  -d *.yourdomain.com \
+  --agree-tos \
+  --non-interactive \
+  --email admin@yourdomain.com
 ```
 
-Expected:
+### Step 5.3: Certificate Path Verification
+Upon successful validation, Let's Encrypt commits your keys to `/etc/letsencrypt/live/yourdomain.com/`:
+* `fullchain.pem`: Combined server certificate and intermediate CA certificate bundle.
+* `privkey.pem`: Your private cryptographic key (keep strictly confidential).
+* `cert.pem`: Base server leaf certificate.
+* `chain.pem`: Let's Encrypt intermediate certificate authority chain.
 
-```text
-/usr/local/share/ca-certificates/home-arpa-ca.crt: OK
-```
-
-Also verify that the certificate was added to the hashed certificate directory:
-
-```bash
-ls -l /etc/ssl/certs/ | grep -i home-arpa
-```
-
-Example result:
-
-```text
-f943cec6.0 -> home-arpa-ca.pem
-home-arpa-ca.pem -> /usr/local/share/ca-certificates/home-arpa-ca.crt
-```
-
----
-
-# 8. Firefox Certificate Trust
-
-Firefox was configured to trust:
-
-```text
-Kiran Homeserver Local CA
-```
-
-After importing:
-
-```text
-home-arpa-ca.crt
-```
-
-Firefox successfully accessed:
-
-```text
-https://photos.home.arpa
-```
-
-without a certificate warning.
-
-### Important
-
-If Firefox displays a certificate warning after importing the CA:
-
-* Verify that the correct CA certificate was imported.
-* Do not import the `.key` file.
-* Do not regenerate the wildcard certificate unnecessarily.
-* Verify that the website is actually presenting the expected wildcard certificate.
-
----
-
-# 9. Brave Browser — Important Lesson
-
-Brave was installed as a **Flatpak**:
-
-```text
-com.brave.Browser
-```
-
-Version:
-
-```text
-1.92.140
-```
-
-The host system trusted the CA and:
+Verify file generation:
 
 ```bash
-curl https://photos.home.arpa
+sudo ls -l /etc/letsencrypt/live/[yourdomain.com/](https://yourdomain.com/)
 ```
 
-worked correctly.
+---
 
-Firefox also worked.
+## 6. Automated Renewal & Service Reload Pipeline
 
-However, Flatpak Brave did not trust the local CA because the Flatpak sandbox had its own CA environment.
+Let's Encrypt certificates remain valid for 90 days. Certbot installs a systemd timer by default, but you should configure post-renewal hooks to automatically deploy new certificates to target services (Nginx, Docker containers, reverse proxies) without manual intervention.
 
-The following confirmed the difference:
+### Step 6.1: Create a Post-Renewal Deploy Hook
+Create `/etc/letsencrypt/renewal-hooks/deploy/reload-services.sh`:
 
 ```bash
-flatpak run --command=sh com.brave.Browser -c \
-'grep -a "Kiran Homeserver Local CA" /etc/ssl/certs/ca-certificates.crt >/dev/null && echo FOUND || echo NOT_FOUND'
+sudo tee /etc/letsencrypt/renewal-hooks/deploy/reload-services.sh <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "[$(date)] Certificate renewed. Triggering service reloads..."
+
+# 1. Reload Nginx Proxy Manager (if running via Docker)
+if docker ps --format '{{.Names}}' | grep -q "^nginx-proxy-manager$"; then
+    echo "Reloading Nginx Proxy Manager container..."
+    docker exec nginx-proxy-manager nginx -s reload
+fi
+
+# 2. Reload Host Nginx (if installed natively)
+if systemctl is-active --quiet nginx; then
+    echo "Reloading system Nginx..."
+    systemctl reload nginx
+fi
+
+echo "[$(date)] Service reloads executed successfully."
+EOF
+
+sudo chmod +x /etc/letsencrypt/renewal-hooks/deploy/reload-services.sh
 ```
 
-Result:
-
-```text
-NOT_FOUND
-```
-
-Therefore:
-
-```text
-Linux system CA       → trusted
-curl                  → works
-Firefox               → works
-Flatpak Brave         → does not trust local CA
-```
-
-### Final decision
-
-Brave troubleshooting was abandoned.
-
-**Firefox is the browser used for the `*.home.arpa` services.**
-
-If reproducing this setup, there is no need to troubleshoot Flatpak Brave unless Brave is specifically required.
-
----
-
-# 10. Verify DNS Resolution
-
-The Homeserver services use Tailscale.
-
-On the Linux Mint client:
+### Step 6.2: Test Renewal Automation (Dry Run)
+Simulate the end-to-end renewal pipeline using Certbot's dry-run engine:
 
 ```bash
-resolvectl query photos.home.arpa
+sudo certbot renew --dry-run
 ```
 
-Example:
+Ensure the output terminates with: `Congratulations, all simulated renewals succeeded`.
 
-```text
-photos.home.arpa: 100.83.21.64
-```
+---
 
-The hostname must resolve to the Homeserver's Tailscale address.
+## 7. Mounting Certificates into Docker Compose Services
 
-In this setup:
+To consume the issued wildcard certificates within containerized reverse proxies (e.g., Nginx, Traefik, or Caddy), mount the live directory into your containers as read-only volumes:
 
-```text
-photos.home.arpa
-        ↓
-100.83.21.64
-        ↓
-Homeserver
+```yaml
+services:
+  reverse-proxy:
+    image: nginx:alpine
+    container_name: reverse-proxy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /etc/letsencrypt/live/[yourdomain.com/fullchain.pem:/etc/nginx/certs/fullchain.pem:ro](https://yourdomain.com/fullchain.pem:/etc/nginx/certs/fullchain.pem:ro)
+      - /etc/letsencrypt/live/[yourdomain.com/privkey.pem:/etc/nginx/certs/privkey.pem:ro](https://yourdomain.com/privkey.pem:/etc/nginx/certs/privkey.pem:ro)
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
 ```
 
 ---
 
-# 11. Verify the HTTPS Certificate Being Served
-
-From the Linux Mint client:
-
-```bash
-openssl s_client \
-  -connect photos.home.arpa:443 \
-  -servername photos.home.arpa \
-  -showcerts </dev/null 2>/dev/null |
-  openssl x509 -noout \
-  -subject \
-  -issuer \
-  -dates \
-  -ext subjectAltName
-```
-
-Expected:
-
-```text
-subject=CN = *.home.arpa
-issuer=C = NP, O = Kiran Home Server, CN = Kiran Homeserver Local CA
-```
-
-And:
-
-```text
-X509v3 Subject Alternative Name:
-    DNS:*.home.arpa
-    DNS:home.arpa
-```
-
-This proves that Nginx Proxy Manager is actually presenting the wildcard certificate.
-
----
-
-# 12. Verify HTTPS with curl
-
-Run:
-
-```bash
-curl -v https://photos.home.arpa
-```
-
-Important lines should include:
-
-```text
-subject: CN=*.home.arpa
-subjectAltName: host "photos.home.arpa" matched cert's "*.home.arpa"
-issuer: C=NP; O=Kiran Home Server; CN=Kiran Homeserver Local CA
-SSL certificate verify ok.
-```
-
-And:
-
-```text
-HTTP/2 200
-```
-
-This verifies:
-
-1. DNS works.
-2. Port 443 is reachable.
-3. TLS works.
-4. The wildcard SAN matches the hostname.
-5. The local CA is trusted.
-6. Nginx Proxy Manager is responding.
-7. The backend application is responding.
-
----
-
-# 13. Nginx Proxy Manager Configuration
-
-All web services are now accessed through Nginx Proxy Manager.
-
-NPM listens on:
-
-```text
-HTTP  :80
-HTTPS :443
-Admin :81
-```
-
-The important configuration is:
-
-```text
-Client
-   │
-   │ HTTPS :443
-   ▼
-Nginx Proxy Manager
-   │
-   │ HTTP
-   ▼
-Application
-```
-
-### General Proxy Host Settings
-
-For each service:
-
-**Domain Names**
-
-```text
-service.home.arpa
-```
-
-**Scheme**
-
-```text
-http
-```
-
-**Forward Hostname / IP**
-
-```text
-100.83.21.64
-```
-
-**Forward Port**
-
-Use the application's published host port.
-
-Enable:
-
-```text
-Block Common Exploits
-Websockets Support
-```
-
-### SSL
-
-Select:
-
-```text
-*.home.arpa
-```
-
-Then enable:
-
-```text
-Force SSL
-HTTP/2 Support
-```
-
-Save.
-
----
-
-# 14. Current Service Mappings
-
-Current Docker ports were verified using:
-
-```bash
-docker ps --format 'table {{.Names}}\t{{.Ports}}\t{{.Networks}}'
-```
-
-The verified mappings were:
-
-| Service      | Hostname              | Forward Host/IP | Forward Port |
-| ------------ | --------------------- | --------------: | -----------: |
-| Immich       | `photos.home.arpa`    |  `100.83.21.64` |       `2283` |
-| Jellyfin     | `jellyfin.home.arpa`  |  `100.83.21.64` |       `8096` |
-| Navidrome    | `music.home.arpa`     |  `100.83.21.64` |       `4533` |
-| BookOrbit    | `books.home.arpa`     |  `100.83.21.64` |       `3000` |
-| qBittorrent  | `qbit.home.arpa`      |  `100.83.21.64` |       `8080` |
-| MeTube       | `metube.home.arpa`    |  `100.83.21.64` |       `8081` |
-| Seafile      | `drive.home.arpa`     |  `100.83.21.64` |       `8083` |
-| AdGuard Home | `adguard.home.arpa`   |  `100.83.21.64` |       `3001` |
-| Portainer    | `portainer.home.arpa` |  `100.83.21.64` |       `9443` |
-
-### Important port correction
-
-Navidrome uses:
-
-```text
-4533
-```
-
-not `4553`.
-
-Seafile uses:
-
-```text
-Host 8083 → Container 80
-```
-
-for its web interface.
-
----
-
-# 15. Jellyfin Example
-
-NPM Proxy Host:
-
-```text
-Domain:
-jellyfin.home.arpa
-
-Scheme:
-http
-
-Forward Hostname/IP:
-100.83.21.64
-
-Forward Port:
-8096
-```
-
-SSL:
-
-```text
-Certificate:
-*.home.arpa
-
-Force SSL:
-ON
-
-HTTP/2:
-ON
-```
-
-Websockets:
-
-```text
-ON
-```
-
-The resulting connection is:
-
-```text
-https://jellyfin.home.arpa
-        ↓
-NPM :443
-        ↓
-http://100.83.21.64:8096
-        ↓
-Jellyfin
-```
-
-Jellyfin itself does **not** need to be configured for HTTPS.
-
----
-
-# 16. Navidrome Example
-
-NPM Proxy Host:
-
-```text
-Domain:
-music.home.arpa
-
-Scheme:
-http
-
-Forward Hostname/IP:
-100.83.21.64
-
-Forward Port:
-4533
-```
-
-SSL:
-
-```text
-*.home.arpa
-Force SSL: ON
-HTTP/2: ON
-```
-
-Websockets:
-
-```text
-ON
-```
-
-Test:
-
-```text
-https://music.home.arpa
-```
-
----
-
-# 17. BookOrbit Example
-
-```text
-Domain:
-books.home.arpa
-
-Scheme:
-http
-
-Forward Hostname/IP:
-100.83.21.64
-
-Forward Port:
-3000
-```
-
-SSL:
-
-```text
-*.home.arpa
-Force SSL: ON
-HTTP/2: ON
-```
-
-Test:
-
-```text
-https://books.home.arpa
-```
-
----
-
-# 18. General Configuration for Remaining Services
-
-### qBittorrent
-
-```text
-Domain:
-qbit.home.arpa
-
-Scheme:
-http
-
-Forward Hostname/IP:
-100.83.21.64
-
-Forward Port:
-8080
-```
-
-### MeTube
-
-```text
-Domain:
-metube.home.arpa
-
-Scheme:
-http
-
-Forward Hostname/IP:
-100.83.21.64
-
-Forward Port:
-8081
-```
-
-### Seafile
-
-```text
-Domain:
-drive.home.arpa
-
-Scheme:
-http
-
-Forward Hostname/IP:
-100.83.21.64
-
-Forward Port:
-8083
-```
-
-### AdGuard Home
-
-```text
-Domain:
-adguard.home.arpa
-
-Scheme:
-http
-
-Forward Hostname/IP:
-100.83.21.64
-
-Forward Port:
-3001
-```
-
-### Portainer
-
-Portainer's host mapping is:
-
-```text
-9443 → 9443
-```
-
-However, **verify whether Portainer is already serving HTTPS on its backend port** before configuring NPM.
-
-If Portainer's `9443` endpoint is HTTPS, the NPM scheme should be:
-
-```text
-https
-```
-
-rather than:
-
-```text
-http
-```
-
-Do not blindly proxy HTTPS Portainer using HTTP.
-
----
-
-# 19. Immich
-
-Immich was already successfully configured:
-
-```text
-https://photos.home.arpa
-```
-
-The backend is:
-
-```text
-100.83.21.64:2283
-```
-
-The successful verification was:
-
-```text
-TLSv1.3
-subject: CN=*.home.arpa
-subjectAltName: photos.home.arpa matched *.home.arpa
-issuer: Kiran Homeserver Local CA
-SSL certificate verify ok.
-HTTP/2 200
-```
-
-Therefore Immich is correctly behind NPM.
-
----
-
-# 20. Do NOT Enable HTTPS Individually in Every Application
-
-The preferred architecture is:
-
-```text
-Browser
-   │
-   │ HTTPS
-   ▼
-Nginx Proxy Manager
-   │
-   │ HTTP
-   ▼
-Docker application
-```
-
-Do **not** unnecessarily configure:
-
-```text
-Jellyfin → HTTPS
-Navidrome → HTTPS
-BookOrbit → HTTPS
-Immich → HTTPS
-...
-```
-
-NPM is the central TLS termination point.
-
-This provides:
-
-* One wildcard certificate.
-* One place to manage HTTPS.
-* One place to renew/replace certificates.
-* Consistent HTTPS URLs.
-* Less application-specific configuration.
-
----
-
-# 21. Why the Wildcard Certificate Works
-
-The certificate contains:
-
-```text
-DNS:*.home.arpa
-```
-
-Therefore it matches:
-
-```text
-photos.home.arpa
-jellyfin.home.arpa
-music.home.arpa
-books.home.arpa
-qbit.home.arpa
-metube.home.arpa
-drive.home.arpa
-adguard.home.arpa
-portainer.home.arpa
-```
-
-It does **not** automatically match deeper names such as:
-
-```text
-something.photos.home.arpa
-```
-
-because:
-
-```text
-*.home.arpa
-```
-
-only represents one hostname level.
-
----
-
-# 22. Certificate Validation Troubleshooting
-
-If Firefox reports:
-
-```text
-SEC_ERROR_UNKNOWN_ISSUER
-```
-
-check whether Firefox trusts:
-
-```text
-Kiran Homeserver Local CA
-```
-
-If Brave reports:
-
-```text
-ERR_CERT_COMMON_NAME_INVALID
-```
-
-first verify the actual certificate being served:
-
-```bash
-openssl s_client \
-  -connect service.home.arpa:443 \
-  -servername service.home.arpa \
-  -showcerts </dev/null 2>/dev/null |
-  openssl x509 -noout \
-  -subject \
-  -issuer \
-  -ext subjectAltName
-```
-
-Make sure the SAN contains:
-
-```text
-DNS:*.home.arpa
-```
-
-and verify:
-
-```bash
-curl -v https://service.home.arpa
-```
-
-Look for:
-
-```text
-subjectAltName: host "service.home.arpa" matched cert's "*.home.arpa"
-SSL certificate verify ok.
-```
-
-If `curl` works but a browser doesn't, the problem is probably the browser's trust store rather than NPM or the certificate.
-
----
-
-# 23. Useful Diagnostic Commands
-
-### Show all Docker containers and ports
-
-```bash
-docker ps --format 'table {{.Names}}\t{{.Ports}}\t{{.Networks}}'
-```
-
-### Test DNS
-
-```bash
-resolvectl query service.home.arpa
-```
-
-### Test certificate
-
-```bash
-openssl s_client \
-  -connect service.home.arpa:443 \
-  -servername service.home.arpa \
-  -showcerts </dev/null 2>/dev/null |
-  openssl x509 -noout \
-  -subject \
-  -issuer \
-  -dates \
-  -ext subjectAltName
-```
-
-### Test HTTPS
-
-```bash
-curl -v https://service.home.arpa
-```
-
-### Test only the important TLS lines
-
-```bash
-curl -v https://service.home.arpa 2>&1 | \
-grep -E 'Host|Trying|subject|issuer|subjectAltName|verify|HTTP/'
-```
-
-### Verify CA
-
-```bash
-sudo openssl verify \
-  -CAfile /etc/ssl/certs/ca-certificates.crt \
-  /usr/local/share/ca-certificates/home-arpa-ca.crt
-```
-
-### Verify wildcard certificate against CA
-
-```bash
-sudo openssl verify \
-  -CAfile /opt/stacks/certificates/ca/home-arpa-ca.crt \
-  /opt/stacks/certificates/wildcard/home-arpa-wildcard.crt
-```
-
----
-
-# 24. Security Considerations
-
-## Protect the CA private key
-
-Never distribute:
-
-```text
-home-arpa-ca.key
-```
-
-The CA private key is effectively the master key for certificates issued by this CA.
-
-## Protect the wildcard private key
-
-Never distribute:
-
-```text
-home-arpa-wildcard.key
-```
-
-It belongs on the server/NPM side.
-
-## Client devices only need the CA certificate
-
-```text
-home-arpa-ca.crt
-```
-
-## Keep HTTPS behind Tailscale
-
-The current preferred architecture is:
-
-```text
-Tailscale
-    ↓
-Homeserver
-    ↓
-NPM
-    ↓
-HTTPS services
-```
-
-The services are intended to remain accessible through the private Tailscale network rather than being publicly exposed to the Internet.
-
-## Avoid bypassing NPM
-
-Prefer:
-
-```text
-https://photos.home.arpa
-```
-
-instead of:
-
-```text
-http://100.83.21.64:2283
-```
-
-The hostname ensures that traffic goes through NPM and receives the correct certificate.
-
----
-
-# 25. Future Security Hardening
-
-Currently many Docker applications publish their ports directly on the Homeserver.
-
-For example:
-
-```text
-2283
-3000
-4533
-8080
-8081
-8083
-8096
-9000
-9443
-```
-
-A future hardening step should consider preventing clients from bypassing NPM and directly accessing these published ports.
-
-Desired architecture:
-
-```text
-Client
-   │
-   │ HTTPS
-   ▼
-NPM :443
-   │
-   ▼
-Docker services
-```
-
-rather than:
-
-```text
-Client
-   ├── :2283
-   ├── :3000
-   ├── :4533
-   ├── :8080
-   ├── :8081
-   ├── :8083
-   ├── :8096
-   └── :9443
-```
-
-**Do this only after confirming all services are working.**
-
-Do not change Docker port mappings or firewall rules during initial HTTPS deployment.
-
----
-
-# 26. Final Verification Checklist
-
-After reproducing the setup, verify each service in Firefox:
-
-```text
-[ ] https://photos.home.arpa
-[ ] https://jellyfin.home.arpa
-[ ] https://music.home.arpa
-[ ] https://books.home.arpa
-[ ] https://qbit.home.arpa
-[ ] https://metube.home.arpa
-[ ] https://drive.home.arpa
-[ ] https://adguard.home.arpa
-[ ] https://portainer.home.arpa
-```
-
-For each service verify:
-
-```text
-[ ] DNS resolves
-[ ] HTTPS loads
-[ ] No Firefox certificate warning
-[ ] Certificate is *.home.arpa
-[ ] Issuer is Kiran Homeserver Local CA
-[ ] NPM proxy works
-[ ] Application works normally
-```
-
----
-
-# 27. Final Working Configuration
-
-The completed setup is:
-
-```text
-                    Tailscale
-                        │
-                        ▼
-                Homeserver IP
-                 100.83.21.64
-                        │
-                        ▼
-             Nginx Proxy Manager
-                    :443 HTTPS
-                        │
-                *.home.arpa cert
-                        │
-       ┌────────────────┼────────────────┐
-       │                │                │
-       ▼                ▼                ▼
- photos.home.arpa  jellyfin.home.arpa  music.home.arpa
-       │                │                │
-     Immich           Jellyfin         Navidrome
-
-       ├── books.home.arpa    → BookOrbit
-       ├── qbit.home.arpa     → qBittorrent
-       ├── metube.home.arpa   → MeTube
-       ├── drive.home.arpa    → Seafile
-       ├── adguard.home.arpa  → AdGuard
-       └── portainer.home.arpa → Portainer
-```
-
-### Certificate hierarchy
-
-```text
-Kiran Homeserver Local CA
-          │
-          │ signs
-          ▼
-   *.home.arpa certificate
-          │
-          ├── photos.home.arpa
-          ├── jellyfin.home.arpa
-          ├── music.home.arpa
-          ├── books.home.arpa
-          ├── qbit.home.arpa
-          ├── metube.home.arpa
-          ├── drive.home.arpa
-          ├── adguard.home.arpa
-          └── portainer.home.arpa
-```
-
-**Result: All Homeserver web services are centrally protected by HTTPS using one trusted local CA + one wildcard certificate + Nginx Proxy Manager.**
+## 8. Operational Troubleshooting Matrix
+
+| Issue / Error Output | Root Cause | Remediation Procedure |
+| :--- | :--- | :--- |
+| **`Cloudflare API error: 6003 Invalid request headers`** | Syntax error, extra spaces, or using an account Global Key under a token variable. | Ensure `/etc/letsencrypt/cloudflare.ini` uses `dns_cloudflare_api_token = ...` without trailing spaces or quotes. |
+| **`Waiting 60 seconds for DNS changes -- DNS problem: NXDOMAIN looking up TXT`** | DNS propagation delay exceeded or nameservers are out of sync. | Increase the propagation timeout flag to `--dns-cloudflare-propagation-seconds 120`. |
+| **`Permission Denied` when containers access certificates** | Target container UID cannot traverse `/etc/letsencrypt/archive/` due to root-only `0700` POSIX directory masks. | Set `/etc/letsencrypt/archive` directory traversal permissions to `0755` (`sudo chmod 0755 /etc/letsencrypt/{live,archive}`) while leaving `privkey.pem` restricted to read-only for the container's GID. |
+| **`Too many certificates already issued for exact set of domains`** | Exceeded Let's Encrypt rate limit thresholds (5 duplicate certificates per 7-day rolling window). | Pass the `--test-cert` (staging) flag during trial deployments and configuration testing. |

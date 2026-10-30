@@ -1,297 +1,156 @@
-Based on the Docker stack structure we've built for your home server so far, I recommend keeping BookOrbit consistent with your existing layout.
+# Production Digital Library Management: Bookorbit / Calibre Server Deployment
 
-Your current architecture is roughly:
+## 1. Overview & Architectural Background
+Managing personal collections of eBooks, technical documentation, PDFs, and comics often requires balancing powerful metadata organization on the desktop with accessible, multi-device web reading and over-the-air syncing. 
 
-* `/opt/stacks/` → Docker Compose files
-* `/mnt/media/` → Movies, TV Shows, Music, Audiobooks
-* `/mnt/cloud/` → Important files, Immich, backups
-* Docker managed through Portainer
+**Bookorbit** (and Calibre-Web ecosystems) provides an elegant, clean web front-end interface built on top of an existing **Calibre** database. It transforms static local book folders into an interactive personal cloud library accessible via browsers, dedicated mobile apps, and e-ink reading devices (such as Onyx Boox, Kindle, or Kobo).
 
-Since you already have **Kavita** installed for ebooks and **Audiobookshelf** for audiobooks, BookOrbit can either:
-
-* **replace both** (if you like its interface better), or
-* **run alongside them** using the exact same library folders (recommended initially while evaluating it). BookOrbit scans your existing library without moving files. ([BookOrbit][1])
-
-# Step 1. Create the stack directory
-
-```bash
-sudo mkdir -p /opt/stacks/bookorbit
-cd /opt/stacks/bookorbit
-```
+### Architectural Breakdown & Core Mechanics
+* **Calibre Database Model (`metadata.db`)**: Calibre organizes libraries around a structured SQLite database (`metadata.db`) paired with standardized file directory hierarchies (`Author Name/Book Title (ID)/`). Bookorbit interacts directly with this SQLite database schema to query titles, authors, tags, series ordering, and publishing metadata without altering the underlying storage convention.
+* **In-Browser Reading Engines**: Bookorbit and modern web readers embed client-side EPUB/PDF rendering engines (such as EPUB.js and PDF.js). Readers can stream books directly in any web browser with instant pagination, font sizing adjustments, night mode styling, and persistent reading progress without requiring local client downloads.
+* **OPDS (Open Publication Distribution System) Feeds**: Provides an integrated OPDS XML catalog endpoint. Any e-ink tablet or mobile reading app supporting the OPDS standard (e.g., KOReader, Moon+ Reader, NeoReader) can browse the remote library, search by tags, and download titles directly over the local network.
+* **Over-the-Air Device Syncing**: Integrates SMTP mailers to dispatch converted `.mobi` or `.epub` files directly to Amazon Kindle or e-reader cloud accounts with a single click.
 
 ---
 
-# Step 2. Create persistent folders
+## 2. Production Homelab Use Cases
+* **E-Ink Tablet Integration**: Seamlessly browse and pull technical PDFs, reference guides, and literature directly into e-ink devices (like Onyx Boox or Kobo) via OPDS.
+* **Cross-Device Browser Reading**: Open and read books instantly across laptops, phones, and workstations while keeping bookmarks and progress synchronized.
+* **Centralized Metadata Standardization**: Standardize author names, ISBNs, series rankings, and high-resolution cover art across extensive digital document collections.
+* **Multi-User Library Profiles**: Create individual user accounts with dedicated reading lists, shelves, and granular restrictions (e.g., family-friendly shelf permissions).
 
-I would use the following structure.
+---
 
+## 3. Prerequisites & Environment Planning
+* Linux host (Ubuntu 22.04/24.04 LTS or Debian 11/12) with Docker and Docker Compose installed.
+* Existing or initialized Calibre library containing a valid `metadata.db` file.
+* Dedicated persistent storage mount for the book repository (e.g., `/mnt/storage/books`).
+* Accessible reverse proxy (Nginx Proxy Manager, Caddy, or Traefik) terminating with SSL.
+* Host domain or local FQDN (e.g., `books.home.lab` or `books.kiranpsankhi.com.np`).
+
+### Directory Layout
 ```text
-/opt/stacks/bookorbit
-│
-├── docker-compose.yml
-├── .env
-├── data/
-│   ├── app
-│   └── postgres
-```
-
-Create them:
-
-```bash
-mkdir -p data/app
-mkdir -p data/postgres
+/opt/homelab/bookorbit/
+├── compose.yaml
+├── config/
+└── library/ (or mounted to external storage /mnt/storage/books)
 ```
 
 ---
 
-# Step 3. Use your existing media folders
+## 4. Step-by-Step Implementation
 
-Since you already have libraries, don't duplicate them.
-
-Example:
-
-```text
-/mnt/media
-│
-├── Books
-│     ├── Fiction
-│     ├── Non Fiction
-│
-├── Audiobooks
-│
-├── Movies
-├── Music
-└── TV Shows
-```
-
-BookOrbit will mount these folders read-only or read-write depending on your preference.
-
----
-
-# Step 4. Create the environment file
-
-Generate secure secrets:
+### Step 4.1: Prepare Host Directories
+Create the configuration directory and ensure the library storage path exists:
 
 ```bash
-openssl rand -hex 24
-openssl rand -hex 32
-openssl rand -hex 16
+sudo mkdir -p /opt/homelab/bookorbit/config
+sudo mkdir -p /mnt/storage/books
+sudo chown -R $USER:$USER /opt/homelab/bookorbit
+cd /opt/homelab/bookorbit
 ```
 
-Create:
+> **Note on Initial `metadata.db`**: Calibre-based web frontends require a valid `metadata.db` file inside the library directory. If you are starting with a completely empty directory, you can generate an empty initial Calibre database via the Calibre CLI (`calibredb`) or copy an existing `metadata.db` into `/mnt/storage/books/`.
 
-```bash
-nano .env
-```
-
-Example:
-
-```env
-APP_IMAGE=ghcr.io/bookorbit/bookorbit:latest
-
-APP_URL=http://192.168.1.20:3000
-
-APP_PORT=3000
-
-POSTGRES_USER=bookorbit
-POSTGRES_DB=bookorbit
-POSTGRES_PASSWORD=YOUR_RANDOM_PASSWORD
-
-JWT_SECRET=YOUR_RANDOM_SECRET
-
-SETUP_BOOTSTRAP_TOKEN=YOUR_RANDOM_TOKEN
-
-BOOKS_HOST_PATH=/mnt/media
-
-PUID=1000
-PGID=1000
-```
-
-These are the minimum required settings. ([BookOrbit][2])
-
----
-
-# Step 5. Create docker-compose.yml
+### Step 4.2: Deploy Docker Compose Manifest (`compose.yaml`)
+Create `/opt/homelab/bookorbit/compose.yaml`:
 
 ```yaml
 services:
-
-  postgres:
-    image: pgvector/pgvector:pg16
-    container_name: bookorbit-db
-
-    restart: unless-stopped
-
-    env_file:
-      - .env
-
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
-
-    volumes:
-      - ./data/postgres:/var/lib/postgresql/data
-
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-
   bookorbit:
-    image: ${APP_IMAGE}
-
+    image: lscr.io/linuxserver/calibre-web:latest
     container_name: bookorbit
-
     restart: unless-stopped
-
-    depends_on:
-      postgres:
-        condition: service_healthy
-
-    env_file:
-      - .env
-
-    ports:
-      - "3000:3000"
-
     environment:
-      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
-
+      - PUID=1000 # Replace with host UID (id -u)
+      - PGID=1000 # Replace with host GID (id -g)
+      - TZ=UTC
+      - DOCKER_MODS=linuxserver/mods:universal-calibre # Enables full ebook conversion tools
     volumes:
-      - ./data/app:/data
-      - /mnt/media:/books
+      - ./config:/config
+      - /mnt/storage/books:/books
+    ports:
+      - "8083:8083"
+    networks:
+      - ingress-net
+
+networks:
+  ingress-net:
+    external: true
 ```
 
-This follows BookOrbit's recommended Docker deployment using a bundled PostgreSQL database. ([BookOrbit][2])
+*Note: The `DOCKER_MODS` variable installs underlying conversion binaries (such as `ebook-convert`), allowing the server to dynamically convert formats between EPUB, PDF, and MOBI on the fly.*
 
----
-
-# Step 6. Start the stack
+Launch the container:
 
 ```bash
-docker compose pull
-
-docker compose up -d
+sudo docker compose up -d
 ```
 
-Verify:
+---
+
+## 5. Reverse Proxy Configuration & OPDS Endpoint
+
+### Step 5.1: Reverse Proxy Configuration (Nginx Proxy Manager)
+1. In NPM, navigate to **Hosts** ➔ **Proxy Hosts** ➔ **Add Proxy Host**:
+   * **Domain Names**: `books.home.lab`
+   * **Scheme**: `http`
+   * **Forward Hostname / IP**: `bookorbit` (or your host IP)
+   * **Forward Port**: `8083`
+   * Check **Block Common Exploits** and **Websockets Support**.
+2. Under the **SSL** tab:
+   * Select your SSL certificate.
+   * Check **Force SSL** and **HTTP/2 Support**.
+3. Under the **Advanced** tab, ensure large book upload operations (such as multi-megabyte technical PDF manuals) do not time out:
+
+```nginx
+client_max_body_size 500M;
+```
+
+---
+
+## 6. Initial Setup & Device Synchronization
+
+### Step 6.1: Initial Web Configuration
+1. Open your browser and navigate to `https://books.home.lab` (or `http://<SERVER_IP>:8083`).
+2. Log in with the default initial credentials:
+   * **Username**: `admin`
+   * **Password**: `admin123` *(Change this immediately after login!)*
+3. On the initial database setup screen, set **Location of Calibre database** to:
+   ```text
+   /books
+   ```
+4. Click **Save**. The dashboard will load and display your indexed library collection.
+
+### Step 6.2: Connecting E-Ink Readers via OPDS (Onyx Boox / KOReader)
+1. Open your reader application (e.g., **KOReader** or **NeoReader** on Onyx Boox).
+2. Navigate to the **OPDS Catalog** section and tap **Add Catalog**.
+3. Configure the feed parameters:
+   * **Catalog Name**: `Homelab Library`
+   * **Catalog URL**: `https://books.home.lab/opds`
+   * Enter your user credentials.
+4. Save the catalog. You can now browse shelves and download books directly into your reading app over Wi-Fi.
+
+---
+
+## 7. Verification & Operational Matrix
 
 ```bash
-docker ps
+# 1. Verify container runtime health
+docker ps --filter "name=bookorbit"
+
+# 2. Check active indexing and startup logs
+docker logs --tail 30 bookorbit
+
+# 3. Test OPDS feed accessibility
+curl -kI [https://books.home.lab/opds](https://books.home.lab/opds)
 ```
 
-You should see
+### Operational Troubleshooting Matrix
 
-```
-bookorbit
-bookorbit-db
-```
-
----
-
-# Step 7. Open the web interface
-
-```
-http://192.168.1.20:3000
-```
-
-You'll be asked for:
-
-* Administrator account
-* Bootstrap token (from `.env`)
-
-Complete the initial setup. ([BookOrbit][2])
-
----
-
-# Step 8. Create your libraries
-
-Create separate libraries rather than mixing everything together.
-
-### Ebooks
-
-```
-Name:
-Books
-
-Folder:
-/books/Books
-```
-
-### Audiobooks
-
-```
-Name:
-Audiobooks
-
-Folder:
-/books/Audiobooks
-```
-
-When selecting folders in BookOrbit, use the **container path** (e.g. `/books/Books`), not the host path like `/mnt/media/Books`. ([BookOrbit][3])
-
----
-
-# Step 9. Verify permissions
-
-Run:
-
-```bash
-ls -ld /mnt/media
-```
-
-and
-
-```bash
-id
-```
-
-Ensure your user is UID/GID `1000` (or adjust `PUID`/`PGID` accordingly). BookOrbit needs read access to the mounted library and write access if you want it to upload or modify metadata. ([BookOrbit][2])
-
----
-
-# Port Summary
-
-| Service    | Port          |
-| ---------- | ------------- |
-| BookOrbit  | 3000          |
-| PostgreSQL | Internal only |
-
----
-
-## How this fits into your home server
-
-Your Docker stack would become:
-
-```
-/opt/stacks
-├── immich
-├── jellyfin
-├── navidrome
-├── qbittorrent
-├── audiobookshelf
-├── kavita
-├── bookorbit
-└── portainer
-```
-
-and your media layout:
-
-```
-/mnt/media
-├── Movies
-├── TV Shows
-├── Music
-├── Books
-├── Audiobooks
-└── Comics
-```
-
-This integrates cleanly with the architecture we've been building for your server, keeps all media centralized under `/mnt/media`, and maintains the same `/opt/stacks/<service>` pattern for Docker Compose management. Once you've confirmed BookOrbit is working well for your workflow, we can also place it behind your reverse proxy (alongside your other services) and optionally enable HTTPS and remote access through Tailscale or your chosen proxy solution.
-
-[1]: https://bookorbit.app/adding-books?utm_source=chatgpt.com "Adding Books | BookOrbit"
-[2]: https://bookorbit.app/installation?utm_source=chatgpt.com "Installation | BookOrbit"
-[3]: https://bookorbit.app/creating-a-library?utm_source=chatgpt.com "Creating a Library | BookOrbit"
+| Symptom / Event | Root Cause | Remediation Procedure |
+| :--- | :--- | :--- |
+| **"DB location is not valid, please enter correct path"** | `/books` volume does not contain a valid `metadata.db` SQLite file. | Ensure a pre-existing Calibre library is copied into `/mnt/storage/books` or initialize an empty database using Calibre desktop/CLI first. |
+| **"E-book converter failed to start"** | Missing conversion binaries or insufficient container memory. | Verify `DOCKER_MODS=linuxserver/mods:universal-calibre` is present in the Compose manifest, and confirm the container has at least 1 GB RAM available. |
+| **Upload of large PDF returns 413 Payload Too Large** | Upstream reverse proxy enforces a low default body size. | Add `client_max_body_size 500M;` to the reverse proxy configuration. |
+| **Permission Denied when uploading or editing books** | UID/GID mismatch between container environment variables and host filesystem permissions. | Run `sudo chown -R 1000:1000 /mnt/storage/books` and ensure `PUID`/`PGID` match your host user ID. |

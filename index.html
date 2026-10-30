@@ -60,6 +60,17 @@
             font-size: 14px;
             display: flex;
             align-items: center;
+        .button {
+            display: inline-flex;
+            align-items: center;
+            background-color: #6200ea;
+            color: white;
+            text-decoration: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            font-weight: 500;
+            margin-top: 20px;
+}
         }
         .notice .material-icons { color: #ff9800; margin-right: 12px; }
     </style>
@@ -75,6 +86,17 @@
             <div class="list-item">
                 <span class="material-icons">account_balance</span>
                 Banking Professional
+           <div id="last-updated" style="margin-top: 24px; font-size: 13px; color: #757575; text-align: center; border-top: 1px solid #eee; padding-top: 12px;"></div>
+
+            <script>
+                const lastModified = new Date(document.lastModified);
+                const formattedDate = lastModified.toLocaleDateString('en-US', { 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric' 
+                     });
+                document.getElementById('last-updated').textContent = "Last updated: " + formattedDate;
+            </script>
             </div>
             
             <div class="section-title" style="margin-top: 24px;">Interests & Hobbies</div>
@@ -86,7 +108,10 @@
                 <span class="material-icons">sports_esports</span>
                 PC Gaming
             </div>
-                   
+            <a href="tutorials.html" class="button">
+                <span class="material-icons" style="margin-right: 8px; color: white;">school</span>
+                Read My Tutorials
+            </a>      
             <div class="notice">
                 <span class="material-icons">construction</span>
                 This website is currently under construction. Check back soon for updates.

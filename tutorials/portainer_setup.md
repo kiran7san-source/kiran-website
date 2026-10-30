@@ -1,23 +1,52 @@
-Given your current Ubuntu Server setup (Docker, Jellyfin, qBittorrent, Samba, Tailscale, and your media mounted under `/mnt/media`), Portainer is an excellent addition. I recommend deploying it with Docker Compose so it fits the rest of your stack.
+# Production Container Management: Portainer Community Edition Deployment & Hardening
 
-## Step 1: Create a directory for Portainer
+## 1. Overview & Architectural Background
+Portainer Community Edition (CE) is a lightweight, centralized container management platform that provides a visual dashboard for Docker standalone hosts, Docker Swarm clusters, and Kubernetes environments. It bridges the gap between raw CLI administration and full enterprise orchestration platforms by providing intuitive container lifecycle monitoring, stack definitions, image registries, and network topology visualization.
 
-```bash
-mkdir -p ~/docker/portainer
-cd ~/docker/portainer
-```
-
-(or `/opt/stacks/portainer` if you want to keep all Docker stacks together)
+### Architectural Breakdown & Core Mechanics
+* **Docker Socket Binding (`docker.sock`)**: Portainer interfaces directly with the host's Docker daemon via the local UNIX domain socket (`/var/run/docker.sock`). Through this IPC channel, Portainer consumes the Docker Engine REST API without requiring network port exposure on the local loopback interface.
+* **Declarative Stack Orchestration**: Portainer natively implements the Compose specification via its "Stacks" feature, allowing administrators to define, deploy, upgrade, and version multi-container architectures directly from a centralized web console or synchronized Git repositories.
+* **Stateless Binary vs. Persistent Volume**: The Portainer binary is packaged as an optimized, single-executable Go container with minimal runtime dependencies. All user identities, hashed passwords, environment configurations, and stack metadata persist separately inside a dedicated data directory (`/data`), ensuring that the Portainer container itself can be pulled, recreated, and updated in seconds without data loss.
+* **Agent Architecture (Edge & Multi-Node)**: While managing the local host directly via socket binding, Portainer also connects to remote physical nodes across separate networks using the lightweight `portainer-agent` over mutual TLS (mTLS), enabling centralized single-pane-of-glass infrastructure governance.
 
 ---
 
-## Step 2: Create docker-compose.yml
+## 2. Production Homelab Use Cases
+* **Visual Container Lifecycle Operations**: Quickly restart, stop, inspect, and kill containers without opening a terminal session.
+* **Interactive Container Consoles & Logs**: Inspect real-time container `stdout`/`stderr` streams and drop into interactive pseudo-TTY bash/sh sessions directly from any web browser.
+* **Resource Consumption Monitoring**: View real-time CPU, RAM, and network I/O usage graphs for each running container to identify memory leaks or rogue processes.
+* **Orphaned Asset Pruning**: Identify and safely purge dangling images, stopped development containers, and unreferenced Docker volumes with a single click.
 
-```bash
-nano docker-compose.yml
+---
+
+## 3. Prerequisites & Environment Planning
+* Linux host (Ubuntu 22.04/24.04 LTS or Debian 11/12) with Docker and Docker Compose installed.
+* Dedicated persistent volume path on the host filesystem.
+* Accessible reverse proxy (Nginx Proxy Manager, Caddy, or Traefik) terminating with SSL.
+* Internal hostname or local FQDN (e.g., `portainer.home.lab` or `portainer.internal.yourdomain.com`).
+
+### Directory Layout
+```text
+/opt/homelab/portainer/
+├── compose.yaml
+└── data/
 ```
 
-Paste the following:
+---
+
+## 4. Step-by-Step Implementation
+
+### Step 4.1: Prepare Host Directories
+Create the directory structure for Portainer persistent data:
+
+```bash
+sudo mkdir -p /opt/homelab/portainer/data
+sudo chown -R $USER:$USER /opt/homelab/portainer
+cd /opt/homelab/portainer
+```
+
+### Step 4.2: Deploy Docker Compose Manifest (`compose.yaml`)
+Create `/opt/homelab/portainer/compose.yaml`:
 
 ```yaml
 services:
@@ -25,302 +54,90 @@ services:
     image: portainer/portainer-ce:latest
     container_name: portainer
     restart: unless-stopped
-
-    ports:
-      - "9000:9000"
-      - "9443:9443"
-
+    security_opt:
+      - no-new-privileges:true
     volumes:
-      - portainer_data:/data
-      - /var/run/docker.sock:/var/run/docker.sock
+      - /etc/localtime:/etc/localtime:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./data:/data
+    ports:
+      - "127.0.0.1:9000:9000"  # HTTP WebUI & API (bound to localhost for reverse proxy)
+      - "127.0.0.1:9443:9443"  # Direct HTTPS fallback
+    networks:
+      - ingress-net
 
-volumes:
-  portainer_data:
+networks:
+  ingress-net:
+    external: true
 ```
 
-Save:
+> **Security Note on Read-Only Socket**: Mounting `/var/run/docker.sock:ro` provides read-only inspection access. However, because Docker socket operations inherently control host containers, administrative privileges within the Portainer WebUI equate to root-equivalent host access. Always secure this interface behind private networks and robust passwords.
 
-* **Ctrl+O**
-* **Enter**
-* **Ctrl+X**
-
----
-
-## Step 3: Start Portainer
+Launch the container:
 
 ```bash
-docker compose up -d
-```
-
-Verify:
-
-```bash
-docker ps
-```
-
-You should see something similar to:
-
-```
-portainer   Up
+sudo docker compose up -d
 ```
 
 ---
 
-## Step 4: Open Portainer
+## 5. Security & Reverse Proxy Ingress
 
-From another computer on your network:
+### Step 5.1: Initial Setup Window Protection
+Portainer features a security timeout: if an administrative account is not created within **5 minutes** of container spin-up, the setup wizard automatically locks to prevent unauthorized interception.
 
-```
-https://<server-ip>:9443
-```
-
-Example:
-
-```
-https://192.168.1.100:9443
+If locked out, simply restart the container to reset the 5-minute timer:
+```bash
+sudo docker compose restart portainer
 ```
 
-Ignore the browser certificate warning the first time because Portainer uses a self-signed certificate by default.
+### Step 5.2: Reverse Proxy Configuration (Nginx Proxy Manager)
+1. In NPM, navigate to **Hosts** ➔ **Proxy Hosts** ➔ **Add Proxy Host**:
+   * **Domain Names**: `portainer.home.lab`
+   * **Scheme**: `http`
+   * **Forward Hostname / IP**: `portainer` (or `127.0.0.1`)
+   * **Forward Port**: `9000`
+   * Check **Block Common Exploits** and **Websockets Support** (essential for web terminal console sessions).
+2. Under the **SSL** tab:
+   * Select your SSL Wildcard or local certificate.
+   * Check **Force SSL** and **HTTP/2 Support**.
+3. Save the proxy host.
 
 ---
 
-## Step 5: Create the admin account
+## 6. Initial Configuration & Onboarding
 
-On first launch you'll be asked to:
-
-* Create an administrator username
-* Create a strong password
-
----
-
-## Step 6: Connect to Docker
-
-Choose:
-
-```
-Local
-```
-
-Then click
-
-```
-Connect
-```
-
-Portainer will immediately display your running containers.
+1. Open your browser and navigate to `https://portainer.home.lab` (or `http://<SERVER_IP>:9000`).
+2. Set a strong password (minimum 12 characters) for the primary `admin` user.
+3. On the environment selection screen, choose **Get Started with the environment you're currently running in** (`local`).
+4. You will be redirected to the main dashboard displaying container statuses, network drivers, and volume distributions.
 
 ---
 
-# Verify everything
+## 7. Operational Maintenance & Container Updates
 
-You should see at least:
-
-* Jellyfin
-* qBittorrent
-* Portainer
-
-along with their images, volumes, and networks.
-
----
-
-# Optional: Organize your Docker stacks
-
-Since you're building a long-term home server, I'd recommend this structure:
-
-```
-/opt/stacks
-├── jellyfin
-│   └── docker-compose.yml
-├── qbittorrent
-│   └── docker-compose.yml
-├── portainer
-│   └── docker-compose.yml
-├── tailscale
-│   └── docker-compose.yml
-└── immich
-    └── docker-compose.yml
-```
-
-Then you can manage each service independently:
+Because Portainer cannot gracefully stop and re-create its own container from within its own WebUI, update Portainer from the host shell:
 
 ```bash
-cd /opt/stacks/portainer
-docker compose pull
-docker compose up -d
+cd /opt/homelab/portainer
+
+# 1. Pull the latest Portainer CE image
+sudo docker compose pull
+
+# 2. Re-create the container with identical volume bindings
+sudo docker compose up -d --remove-orphans
+
+# 3. Clean up the obsolete image
+sudo docker image prune -f
 ```
 
 ---
 
-# Useful Portainer features
-
-Once installed, you can:
-
-* View container logs
-* Start/stop/restart containers
-* Update images
-* Browse Docker volumes
-* Open an interactive terminal inside containers
-* Inspect networks
-* Monitor CPU and memory usage
-* Deploy new stacks directly from the web UI
-
----
-
-## Next recommendation
-
-Once Portainer is running, I recommend we:
-
-1. Move your existing Jellyfin and qBittorrent Compose files into `/opt/stacks`.
-2. Import them into Portainer as **Stacks**.
-3. Later, deploy Immich (or another photo backup solution) and any future services directly through Portainer, so your entire home server can be managed from one interface.
-
-If Portainer is asking for a **Setup Token** on the initial registration page, it's usually because the container was started in **agent mode** or it thinks it should connect to a remote environment instead of managing the local Docker engine.
-
-Let's verify your deployment.
-
-### 1. Check your running container
-
-Run:
-
-```bash
-docker ps
-```
-
-Then inspect the container:
-
-```bash
-docker inspect portainer --format '{{.Config.Cmd}}'
-```
-
-and
-
-```bash
-docker inspect portainer --format '{{.Config.Image}}'
-```
-
-Please paste the output.
-
----
-
-### 2. Check your compose file
-
-Also show me the contents of your compose file:
-
-```bash
-cat ~/docker/portainer/docker-compose.yml
-```
-
-(or `/opt/stacks/portainer/docker-compose.yml` if you used that location).
-
----
-
-### 3. If this is a fresh installation
-
-If there is no data you need to keep, the quickest fix is to recreate Portainer from scratch:
-
-```bash
-docker compose down
-docker volume rm portainer_portainer_data
-docker compose up -d
-```
-
-**Only do this if Portainer has never been configured before**, because it deletes Portainer's configuration database (it does **not** delete your Docker containers, images, or application data).
-
----
-
-### One question
-
-When you browse to Portainer, is the URL:
-
-```
-https://<server-ip>:9443
-```
-
-And does the page say **"Create the first administrator user"**, or does it specifically say **"Enter setup token"**?
-
-A screenshot of that page would also help pinpoint the issue quickly.
-
-Your container looks normal. The fact that you're seeing a **Setup Token** page is not expected for a fresh standalone Portainer CE installation.
-
-Let's inspect the configuration rather than guessing.
-
-### Step 1: Show your Compose file
-
-Run:
-
-```bash
-cat /opt/stacks/portainer/docker-compose.yml
-```
-
-Paste the output.
-
-### Step 2: Check the Portainer logs
-
-Run:
-
-```bash
-docker logs portainer --tail 100
-```
-
-Paste the output.
-
-### Step 3: Check whether an old Portainer database exists
-
-Run:
-
-```bash
-docker volume ls
-```
-
-and then:
-
-```bash
-docker volume inspect portainer_portainer_data
-```
-
----
-
-## One thing to check immediately
-
-Are you opening:
-
-```
-https://<server-ip>:9443
-```
-
-or are you opening:
-
-```
-http://<server-ip>:9000
-```
-
-The recommended interface is **https://<server-ip>:9443**.
-
----
-
-## If this is a brand-new installation
-
-If you have **never configured Portainer before** on this server, we can completely reset it (this won't affect Jellyfin or qBittorrent):
-
-```bash
-docker compose down
-docker volume rm portainer_portainer_data
-docker image rm portainer/portainer-ce:latest
-docker compose pull
-docker compose up -d
-```
-
-Then browse to:
-
-```
-https://<server-ip>:9443
-```
-
-The first page should say **"Create the first administrator user"**, not ask for a setup token.
-
-Please post:
-
-1. `docker-compose.yml`
-2. `docker logs portainer --tail 100`
-
-Those two outputs should reveal why Portainer is presenting the setup token page.
+## 8. Operational Troubleshooting Matrix
+
+| Symptom / Event | Root Cause | Remediation Procedure |
+| :--- | :--- | :--- |
+| **"Your Portainer instance timed out for security purposes"** | The initial setup wizard was open for longer than 5 minutes without creating an admin account. | Restart the container using `docker compose restart portainer` and reload the webpage within 5 minutes. |
+| **Container Console / Exec Fails with "Disconnected"** | Reverse proxy is dropping WebSocket connection upgrade headers during terminal sessions. | Ensure **Websockets Support** is enabled in NPM, or add `proxy_set_header Upgrade $http_upgrade;` and `proxy_set_header Connection "upgrade";` to your Nginx configuration. |
+| **`Got permission denied while trying to connect to the Docker daemon socket`** | Mismatched permissions or missing access to `/var/run/docker.sock`. | Verify that the host Docker daemon is running via `sudo systemctl status docker` and that `/var/run/docker.sock` has `rw-rw----` permissions assigned to group `docker`. |
+| **Stack deployment error: "Compose file version is obsolete"** | Legacy `version: '3'` headers in user manifests. | Remove the top-level `version:` key from your Compose YAML file; modern Docker Compose V2 plugins interpret syntax without explicit version headers. |

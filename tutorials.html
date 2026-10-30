@@ -43,6 +43,32 @@
         }
         .header h1 { margin: 0; font-size: 24px; font-weight: 500; }
         .content { padding: 32px; }
+        #back-to-top {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background-color: #6200ea;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 48px;
+            height: 48px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1), 0 2px 4px rgba(0,0,0,0.06);
+            cursor: pointer;
+            display: none; /* Hidden by default */
+            justify-content: center;
+            align-items: center;
+            transition: opacity 0.3s ease, transform 0.2s;
+            opacity: 0;
+            z-index: 1000;
+        }
+        #back-to-top.show {
+            display: flex;
+            opacity: 1;
+        }
+        #back-to-top:active {
+            transform: scale(0.9);
+        }
     </style>
 </head>
 <body>
@@ -65,5 +91,28 @@
             </zero-md>
         </div>
     </div>
+    <button id="back-to-top" title="Back to top">
+        <span class="material-icons">arrow_upward</span>
+    </button>
+    <script>
+        const backToTopButton = document.getElementById('back-to-top');
+    
+        // Show button when scrolled down 200px
+        window.addEventListener('scroll', () => {
+            if (window.scrollY > 200) {
+                backToTopButton.classList.add('show');
+            } else {
+                backToTopButton.classList.remove('show');
+            }
+        });
+    
+        // Smooth scroll to top on click
+        backToTopButton.addEventListener('click', () => {
+            window.scrollTo({
+                top: 0,
+                behavior: 'smooth'
+            });
+        });
+    </script>
 </body>
 </html>

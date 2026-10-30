@@ -1,0 +1,815 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tutorial Reader - Kiran Prasad Sankhi</title>
+    <meta name="description" content="Technical documentation and Linux administration handbook viewer.">
+    <link rel="canonical" href="https://kiranpsankhi.com.np/tutorial-viewer.html">
+
+    <!-- Fonts & Icons -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+
+    <!-- Zero-MD component -->
+    <script type="module" src="https://cdn.jsdelivr.net/gh/zerodevx/zero-md@2/dist/zero-md.min.js"></script>
+
+    <style>
+        :root {
+            --primary: #00acc1;
+            --primary-dark: #00838f;
+            --primary-light: #e0f7fa;
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+            --bg-page: #f8fafc;
+            --bg-card: #ffffff;
+            --border-color: #e2e8f0;
+            --sidebar-width: 310px;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Roboto', -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: var(--bg-page);
+            margin: 0;
+            padding: 0;
+            color: var(--text-main);
+            line-height: 1.6;
+        }
+
+        /* Top Progress Bar */
+        #progress-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--primary), #00e5ff);
+            width: 0%;
+            z-index: 1000;
+            transition: width 0.1s ease;
+        }
+
+        /* Top Navbar */
+        header.site-header {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: white;
+            padding: 14px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 900;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            flex-wrap: wrap;
+        }
+
+        .nav-button {
+            color: white;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            padding: 6px 12px;
+            border-radius: 6px;
+            background: rgba(255,255,255,0.15);
+            font-size: 13.5px;
+            font-weight: 500;
+            transition: background 0.2s;
+        }
+
+        .nav-button:hover {
+            background: rgba(255,255,255,0.25);
+        }
+
+        .nav-button .material-icons {
+            font-size: 17px;
+            margin-right: 5px;
+        }
+
+        .header-title h1 {
+            margin: 0;
+            font-size: 17px;
+            font-weight: 500;
+            letter-spacing: -0.2px;
+            max-width: 600px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .header-badges {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .badge {
+            background: rgba(255,255,255,0.2);
+            color: white;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        /* Container Layout */
+        .tutorial-container {
+            max-width: 1320px;
+            margin: 28px auto 60px;
+            padding: 0 20px;
+            display: flex;
+            gap: 32px;
+            align-items: flex-start;
+        }
+
+        /* Sidebar: Table of Contents */
+        aside.toc-sidebar {
+            width: var(--sidebar-width);
+            flex-shrink: 0;
+            position: sticky;
+            top: 80px;
+            max-height: calc(100vh - 100px);
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.04);
+        }
+
+        .toc-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }
+
+        .toc-header h2 {
+            margin: 0;
+            font-size: 13.5px;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            color: var(--primary-dark);
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .toc-header .material-icons {
+            font-size: 17px;
+        }
+
+        .search-box {
+            position: relative;
+            margin-bottom: 14px;
+        }
+
+        .search-box input {
+            width: 100%;
+            padding: 8px 12px 8px 32px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            font-size: 13px;
+            outline: none;
+            transition: border-color 0.2s;
+            font-family: inherit;
+        }
+
+        .search-box input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px var(--primary-light);
+        }
+
+        .search-box .material-icons {
+            position: absolute;
+            left: 8px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 16px;
+            color: var(--text-muted);
+        }
+
+        .toc-list {
+            overflow-y: auto;
+            padding-right: 6px;
+            margin: 0;
+            list-style: none;
+            padding-left: 0;
+            flex-grow: 1;
+        }
+
+        .toc-list::-webkit-scrollbar {
+            width: 4px;
+        }
+        .toc-list::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+
+        .toc-item {
+            margin-bottom: 3px;
+        }
+
+        .toc-link {
+            display: block;
+            padding: 5px 10px;
+            border-radius: 6px;
+            font-size: 13px;
+            color: #475569;
+            text-decoration: none;
+            line-height: 1.4;
+            transition: all 0.15s ease;
+            cursor: pointer;
+        }
+
+        .toc-link:hover {
+            background-color: var(--primary-light);
+            color: var(--primary-dark);
+        }
+
+        .toc-link.active {
+            background-color: var(--primary-light);
+            color: var(--primary-dark);
+            font-weight: 600;
+            border-left: 3px solid var(--primary);
+        }
+
+        .toc-link.level-3 {
+            padding-left: 20px;
+            font-size: 12.5px;
+            color: #64748b;
+        }
+
+        /* Mobile TOC Drawer */
+        .toc-mobile-toggle {
+            display: none;
+            position: fixed;
+            bottom: 24px;
+            left: 24px;
+            background: var(--primary-dark);
+            color: white;
+            border: none;
+            border-radius: 30px;
+            padding: 10px 18px;
+            font-size: 13px;
+            font-weight: 500;
+            align-items: center;
+            gap: 6px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            cursor: pointer;
+            z-index: 850;
+        }
+
+        /* Main Reader Card */
+        main.guide-card {
+            background: var(--bg-card);
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.04);
+            flex-grow: 1;
+            width: 100%;
+            max-width: 940px;
+            overflow: hidden;
+            padding: 36px 48px;
+            position: relative;
+        }
+
+        /* Loading Skeleton */
+        #loading-state {
+            padding: 50px 20px;
+            text-align: center;
+            color: var(--text-muted);
+        }
+
+        .spinner {
+            width: 36px;
+            height: 36px;
+            border: 3px solid #e2e8f0;
+            border-top: 3px solid var(--primary);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 16px auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Back to top Floating Button */
+        #back-to-top {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 46px;
+            height: 46px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+            cursor: pointer;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            transition: opacity 0.3s ease, transform 0.2s;
+            opacity: 0;
+            z-index: 850;
+        }
+
+        #back-to-top.show {
+            display: flex;
+            opacity: 1;
+        }
+
+        #back-to-top:hover {
+            background-color: var(--primary-dark);
+            transform: translateY(-2px);
+        }
+
+        /* Mobile Breakpoints */
+        @media (max-width: 960px) {
+            .tutorial-container {
+                flex-direction: column;
+                padding: 0 16px;
+            }
+
+            aside.toc-sidebar {
+                display: none;
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 85%;
+                max-width: 340px;
+                height: 100vh;
+                max-height: 100vh;
+                z-index: 1100;
+                border-radius: 0;
+                box-shadow: 4px 0 20px rgba(0,0,0,0.25);
+            }
+
+            aside.toc-sidebar.open {
+                display: flex;
+            }
+
+            .toc-backdrop {
+                display: none;
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100vw;
+                height: 100vh;
+                background: rgba(0,0,0,0.4);
+                z-index: 1050;
+            }
+
+            .toc-backdrop.open {
+                display: block;
+            }
+
+            .toc-mobile-toggle {
+                display: flex;
+            }
+
+            main.guide-card {
+                padding: 24px 20px;
+            }
+        }
+
+        /* Print styles */
+        @media print {
+            header.site-header,
+            aside.toc-sidebar,
+            #back-to-top,
+            .toc-mobile-toggle,
+            #progress-bar {
+                display: none !important;
+            }
+            main.guide-card {
+                border: none;
+                box-shadow: none;
+                padding: 0;
+                max-width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="progress-bar"></div>
+
+    <header class="site-header">
+        <div class="header-left">
+            <a href="tutorials.html" class="nav-button" title="Back to All Tutorials">
+                <span class="material-icons" aria-hidden="true">arrow_back</span>
+                Tutorials
+            </a>
+            <div class="header-title">
+                <h1 id="page-title">Loading Guide...</h1>
+            </div>
+        </div>
+        <div class="header-badges">
+            <span class="badge" id="guide-badge">Reference Guide</span>
+        </div>
+    </header>
+
+    <div class="toc-backdrop" id="toc-backdrop"></div>
+
+    <div class="tutorial-container">
+        <!-- Sidebar TOC -->
+        <aside class="toc-sidebar" id="toc-sidebar">
+            <div class="toc-header">
+                <h2>
+                    <span class="material-icons" aria-hidden="true">menu_book</span>
+                    Contents
+                </h2>
+                <span id="toc-count" style="font-size: 11px; color: var(--text-muted); font-weight: 600;">Loading...</span>
+            </div>
+
+            <div class="search-box">
+                <span class="material-icons" aria-hidden="true">search</span>
+                <input type="text" id="toc-search" placeholder="Filter topics or commands..." aria-label="Filter topics">
+            </div>
+
+            <ul class="toc-list" id="toc-list"></ul>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="guide-card">
+            <!-- Loading Indicator -->
+            <div id="loading-state">
+                <div class="spinner"></div>
+                <div style="font-weight: 500;" id="loading-title">Loading tutorial document...</div>
+                <div style="font-size: 13px; margin-top: 4px; color: var(--text-muted);">Parsing markdown &amp; terminal cheat sheets</div>
+            </div>
+
+            <!-- Zero-MD Element with Custom Shadow Styles -->
+            <zero-md id="markdown-viewer">
+                <template>
+                    <style>
+                        .markdown-body {
+                            font-family: 'Roboto', -apple-system, BlinkMacSystemFont, sans-serif;
+                            color: #1e293b;
+                            line-height: 1.7;
+                            font-size: 15.5px;
+                        }
+
+                        h1, h2, h3, h4, h5, h6 {
+                            font-family: 'Roboto', sans-serif;
+                            font-weight: 600;
+                            color: #0f172a;
+                            margin-top: 1.8em;
+                            margin-bottom: 0.6em;
+                            line-height: 1.3;
+                            scroll-margin-top: 85px;
+                        }
+
+                        h1 {
+                            font-size: 28px;
+                            border-bottom: 2px solid #e2e8f0;
+                            padding-bottom: 12px;
+                            color: #00838f;
+                        }
+
+                        h2 {
+                            font-size: 21px;
+                            border-bottom: 1px solid #e2e8f0;
+                            padding-bottom: 8px;
+                            color: #0f766e;
+                        }
+
+                        h3 {
+                            font-size: 17.5px;
+                            color: #0369a1;
+                        }
+
+                        p, li {
+                            color: #334155;
+                        }
+
+                        /* Inline code */
+                        code:not(pre code) {
+                            font-family: 'Fira Code', monospace;
+                            background-color: #f1f5f9;
+                            color: #d946ef;
+                            padding: 2px 6px;
+                            border-radius: 4px;
+                            font-size: 13.5px;
+                            border: 1px solid #e2e8f0;
+                        }
+
+                        /* Code Blocks */
+                        pre {
+                            position: relative;
+                            background-color: #0f172a !important;
+                            border-radius: 8px;
+                            padding: 16px 20px;
+                            overflow-x: auto;
+                            box-shadow: 0 4px 8px rgba(0,0,0,0.12);
+                            border: 1px solid #1e293b;
+                        }
+
+                        pre code {
+                            font-family: 'Fira Code', 'Courier New', monospace;
+                            font-size: 13.5px;
+                            color: #e2e8f0;
+                            line-height: 1.55;
+                            display: block;
+                        }
+
+                        /* Copy Button inside Code Block */
+                        .copy-btn {
+                            position: absolute;
+                            top: 10px;
+                            right: 10px;
+                            background: rgba(255, 255, 255, 0.12);
+                            border: 1px solid rgba(255, 255, 255, 0.2);
+                            color: #cbd5e1;
+                            border-radius: 6px;
+                            padding: 4px 8px;
+                            font-size: 12px;
+                            display: flex;
+                            align-items: center;
+                            gap: 4px;
+                            cursor: pointer;
+                            transition: all 0.2s;
+                            font-family: inherit;
+                        }
+
+                        .copy-btn:hover {
+                            background: rgba(255, 255, 255, 0.25);
+                            color: white;
+                        }
+
+                        .copy-btn.copied {
+                            background: #10b981;
+                            color: white;
+                            border-color: #059669;
+                        }
+
+                        blockquote {
+                            margin: 20px 0;
+                            padding: 14px 20px;
+                            background-color: #f0fdfa;
+                            border-left: 4px solid #00acc1;
+                            border-radius: 0 6px 6px 0;
+                            color: #134e4a;
+                            font-size: 14.5px;
+                        }
+
+                        blockquote p {
+                            margin: 0;
+                            color: #134e4a;
+                        }
+
+                        table {
+                            width: 100%;
+                            border-collapse: collapse;
+                            margin: 24px 0;
+                            font-size: 14px;
+                            border: 1px solid #e2e8f0;
+                            border-radius: 6px;
+                            overflow: hidden;
+                        }
+
+                        th {
+                            background-color: #f8fafc;
+                            color: #334155;
+                            font-weight: 600;
+                            padding: 10px 14px;
+                            text-align: left;
+                            border-bottom: 2px solid #cbd5e1;
+                        }
+
+                        td {
+                            padding: 10px 14px;
+                            border-bottom: 1px solid #e2e8f0;
+                            color: #475569;
+                        }
+
+                        tr:nth-child(even) td {
+                            background-color: #fcfcfd;
+                        }
+                    </style>
+                </template>
+            </zero-md>
+        </main>
+    </div>
+
+    <!-- Mobile Navigation Toggle -->
+    <button class="toc-mobile-toggle" id="toc-mobile-toggle">
+        <span class="material-icons" aria-hidden="true">menu</span>
+        <span>Table of Contents</span>
+    </button>
+
+    <!-- Back to top button -->
+    <button id="back-to-top" title="Back to top" aria-label="Back to top">
+        <span class="material-icons" aria-hidden="true">arrow_upward</span>
+    </button>
+
+    <script>
+        // Tutorial Registry: easily add new Markdown files here
+        const GUIDE_REGISTRY = {
+            'linux-server': {
+                title: 'Linux File Server Administration Guide',
+                badge: 'Ubuntu 24.04 LTS',
+                path: 'tutorials/basic_terminal_guide.md'
+            },
+            'docker-homelab': {
+                title: 'Homelab Docker Compose Architecture',
+                badge: 'Docker & Compose',
+                path: 'tutorials/docker_homelab.md'
+            },
+            'storage-backups': {
+                title: 'Redundant Storage Pools & 3-2-1 Backups',
+                badge: 'Storage & Restic',
+                path: 'tutorials/storage_backups.md'
+            },
+            'secure-networking': {
+                title: 'Secure Ingress: Cloudflare Tunnels & VPNs',
+                badge: 'Cloudflare & WireGuard',
+                path: 'tutorials/secure_networking.md'
+            }
+        };
+
+        const viewer = document.getElementById('markdown-viewer');
+        const pageTitle = document.getElementById('page-title');
+        const guideBadge = document.getElementById('guide-badge');
+        const loadingState = document.getElementById('loading-state');
+        const loadingTitle = document.getElementById('loading-title');
+        const tocList = document.getElementById('toc-list');
+        const tocSearch = document.getElementById('toc-search');
+        const progressBar = document.getElementById('progress-bar');
+        const backToTopButton = document.getElementById('back-to-top');
+        const tocSidebar = document.getElementById('toc-sidebar');
+        const tocBackdrop = document.getElementById('toc-backdrop');
+        const mobileToggle = document.getElementById('toc-mobile-toggle');
+
+        // Parse URL params: ?guide=linux-server OR ?src=path/to/file.md
+        const urlParams = new URLSearchParams(window.location.search);
+        const guideKey = urlParams.get('guide') || 'linux-server';
+        const directSrc = urlParams.get('src');
+
+        let markdownSource = 'tutorials/basic_terminal_guide.md';
+        let currentTitle = 'Linux File Server Administration Guide';
+        let currentBadge = 'Ubuntu 24.04 LTS';
+
+        if (directSrc) {
+            markdownSource = directSrc;
+            currentTitle = directSrc.split('/').pop().replace(/\.md$/i, '').replace(/[-_]/g, ' ');
+            currentBadge = 'Custom Doc';
+        } else if (GUIDE_REGISTRY[guideKey]) {
+            markdownSource = GUIDE_REGISTRY[guideKey].path;
+            currentTitle = GUIDE_REGISTRY[guideKey].title;
+            currentBadge = GUIDE_REGISTRY[guideKey].badge;
+        }
+
+        // Apply metadata to header & page
+        pageTitle.textContent = currentTitle;
+        document.title = `${currentTitle} - Kiran Prasad Sankhi`;
+        guideBadge.textContent = currentBadge;
+        loadingTitle.textContent = `Loading ${currentTitle}...`;
+
+        // Set the zero-md source to load
+        viewer.setAttribute('src', markdownSource);
+
+        // Scroll and progress bar
+        window.addEventListener('scroll', () => {
+            const totalHeight = document.documentElement.scrollHeight - window.innerHeight;
+            const progress = totalHeight > 0 ? (window.scrollY / totalHeight) * 100 : 0;
+            progressBar.style.width = Math.min(100, Math.max(0, progress)) + '%';
+
+            if (window.scrollY > 300) {
+                backToTopButton.classList.add('show');
+            } else {
+                backToTopButton.classList.remove('show');
+            }
+        });
+
+        backToTopButton.addEventListener('click', () => {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+
+        // Mobile drawer handlers
+        if (mobileToggle) {
+            mobileToggle.addEventListener('click', () => {
+                tocSidebar.classList.toggle('open');
+                tocBackdrop.classList.toggle('open');
+            });
+        }
+
+        if (tocBackdrop) {
+            tocBackdrop.addEventListener('click', () => {
+                tocSidebar.classList.remove('open');
+                tocBackdrop.classList.remove('open');
+            });
+        }
+
+        // zero-md rendered event
+        viewer.addEventListener('zero-md-rendered', () => {
+            if (loadingState) {
+                loadingState.style.display = 'none';
+            }
+
+            const shadow = viewer.shadowRoot;
+            if (!shadow) return;
+
+            // Copy buttons for all <pre> blocks
+            const pres = shadow.querySelectorAll('pre');
+            pres.forEach(pre => {
+                if (pre.querySelector('.copy-btn')) return;
+
+                const copyBtn = document.createElement('button');
+                copyBtn.className = 'copy-btn';
+                copyBtn.setAttribute('title', 'Copy code to clipboard');
+                copyBtn.innerHTML = '<span class="material-icons" style="font-size:14px;">content_copy</span> Copy';
+
+                copyBtn.addEventListener('click', async (e) => {
+                    e.stopPropagation();
+                    const code = pre.querySelector('code');
+                    const text = code ? code.innerText : pre.innerText;
+
+                    try {
+                        await navigator.clipboard.writeText(text);
+                        copyBtn.classList.add('copied');
+                        copyBtn.innerHTML = '<span class="material-icons" style="font-size:14px;">check</span> Copied!';
+                        setTimeout(() => {
+                            copyBtn.classList.remove('copied');
+                            copyBtn.innerHTML = '<span class="material-icons" style="font-size:14px;">content_copy</span> Copy';
+                        }, 2000);
+                    } catch (err) {
+                        console.error('Clipboard copy failed:', err);
+                    }
+                });
+
+                pre.appendChild(copyBtn);
+            });
+
+            // Dynamically generate Table of Contents from h2, h3
+            const headings = shadow.querySelectorAll('h2, h3');
+            tocList.innerHTML = '';
+
+            headings.forEach((heading, index) => {
+                const text = heading.textContent.trim();
+                if (!text) return;
+
+                const anchorId = 'sec-' + index;
+                heading.setAttribute('id', anchorId);
+
+                const li = document.createElement('li');
+                li.className = 'toc-item';
+
+                const a = document.createElement('a');
+                a.className = 'toc-link ' + (heading.tagName.toLowerCase() === 'h3' ? 'level-3' : 'level-2');
+                a.textContent = text;
+
+                a.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    heading.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+                    tocSidebar.classList.remove('open');
+                    tocBackdrop.classList.remove('open');
+
+                    document.querySelectorAll('.toc-link').forEach(link => link.classList.remove('active'));
+                    a.classList.add('active');
+                });
+
+                li.appendChild(a);
+                tocList.appendChild(li);
+            });
+
+            const countElem = document.getElementById('toc-count');
+            if (countElem) {
+                countElem.textContent = `${headings.length} Topics`;
+            }
+        });
+
+        // Search TOC filter
+        tocSearch.addEventListener('input', (e) => {
+            const query = e.target.value.toLowerCase().trim();
+            const items = tocList.querySelectorAll('.toc-item');
+
+            items.forEach(item => {
+                const linkText = item.querySelector('.toc-link').textContent.toLowerCase();
+                if (linkText.includes(query)) {
+                    item.style.display = '';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+        });
+    </script>
+</body>
+</html>
